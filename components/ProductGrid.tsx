@@ -46,7 +46,7 @@ export default function ProductGrid({
 
 const styles = StyleSheet.create({
   container: {
-    marginVertical: 0,
+    marginVertical: 24,
   },
   scrollContainer: {
     paddingHorizontal: 16,
@@ -61,8 +61,8 @@ const styles = StyleSheet.create({
     marginTop: 8 
   },
   viewMoreText: { 
-    fontSize: 13, 
-    color: C.subtext, 
+    fontSize: 16, 
+    color: C.primary, 
     fontWeight: "500" 
   },
 });

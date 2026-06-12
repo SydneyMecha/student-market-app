@@ -8,6 +8,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { C, globalStyles } from '../styles/theme';
+import { Icon } from 'react-native-paper';
 
 interface OrderConfirmationScreenProps {
   onNavigate: (screenName: string) => void;
@@ -36,8 +37,18 @@ export default function OrderConfirmationScreen({ onNavigate }: OrderConfirmatio
   return (
     <SafeAreaView style={styles.safeArea} edges={["top"]}>
       
-      <View style={[globalStyles.headerRow, { justifyContent: 'center', alignItems: 'center',}]}>
+      <View style={[globalStyles.headerRow]}>
+        <TouchableOpacity 
+        style={globalStyles.iconBtn} 
+        onPress={() => onNavigate('Home')}
+        activeOpacity={0.7}
+        >
+          <Icon source="chevron-left" size={24} />
+        </TouchableOpacity>
+
         <Text style={globalStyles.headerTitle}>Thank You!</Text>
+
+        <View style={{ width: 36 }} /> 
       </View>
 
       <ScrollView showsVerticalScrollIndicator={false}>

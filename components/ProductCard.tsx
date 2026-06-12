@@ -1,10 +1,20 @@
-import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Dimensions, Image } from 'react-native';
-import { WooProduct } from '../types';
+import React, { memo } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, Dimensions } from 'react-native';
+import { Image } from 'expo-image';
+// import { WooProduct } from '../types';
 import { C } from '../styles/theme';
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 const CARD_WIDTH = (SCREEN_WIDTH - 48) / 3;
+
+interface WooProduct {
+  id: number;
+  name: string;
+  price: string;
+  regular_price: string;
+  on_sale: boolean;
+  images: Array<{ id: number; src: string; alt?: string }>;
+}
 
 export default function ProductCard({ product }: { product: WooProduct }): React.JSX.Element {
   const img = product.images[0]?.src;
@@ -12,25 +22,39 @@ export default function ProductCard({ product }: { product: WooProduct }): React
     <TouchableOpacity style={styles.productCard} activeOpacity={0.85}>
       <View style={styles.productImgWrapper}>
         {img ? (
-          <Image source={{ uri: img }} style={styles.productImg} resizeMode="cover" />
+          <Image source={{ uri: img }} style={styles.productImg} contentFit="cover" />
         ) : (
           <View style={[styles.productImg, { backgroundColor: C.border }]} />
         )}
       </View>
       <Text style={styles.productName} numberOfLines={1}>{product.name}</Text>
-      <Text style={styles.productPrice}>${product.price}</Text>
+      
+      {/* Price Display Row */}
+      <View style={styles.priceRow}>
+        {product.on_sale ? (
+          <>
+            {/* Sale Price (color: C.primary) */}
+            <Text style={styles.salePrice}>Ksh {product.price}</Text>
+            
+            {/* Original Price (color: C.subtext) */}
+            <Text style={styles.originalPrice}>Ksh {product.regular_price}</Text>
+          </>
+        ) : (
+          /* Normal Price if not on sale */
+          <Text style={styles.productPrice}>Ksh {product.price}</Text>
+        )}
+      </View>
     </TouchableOpacity>
   );
 }
 
+export const ProductCardComponent = memo(ProductCard);
+
 const styles = StyleSheet.create({
-  // productRow: {
-  //   flexDirection: "row",
-  //   paddingHorizontal: 16,
-  //   gap: 8,
-  //   marginTop: 4,
-  // },
-  productCard: { width: CARD_WIDTH },
+  productCard: {
+    width: CARD_WIDTH, 
+    padding: 4,
+  },
   productImgWrapper: {
     borderRadius: 12,
     overflow: "hidden",
@@ -38,8 +62,28 @@ const styles = StyleSheet.create({
     marginBottom: 6,
   },
   productImg: { width: CARD_WIDTH, height: CARD_WIDTH, borderRadius: 12 },
-  productName: { fontSize: 13, color: C.text, fontWeight: "600" },
-  productPrice: { fontSize: 12, color: C.subtext, marginTop: 2 },
-  // viewMoreBtn: { alignItems: "flex-end", paddingHorizontal: 16, marginTop: 8 },
-  // viewMoreText: { fontSize: 13, color: C.subtext, fontWeight: "500" },
+  productName: { fontSize: 12, color: C.text, fontWeight: "600" },
+  // productPrice: { fontSize: 12, color: C.subtext, marginTop: 2 },
+
+    priceRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 4,
+  },
+  productPrice: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#1F2937', // Default dark text color
+  },
+  salePrice: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    color: C.primary, // Sale price color
+    marginRight: 6,
+  },
+  originalPrice: {
+    fontSize: 12,
+    color: C.subtext, // Original price text color
+    textDecorationLine: 'line-through', // Adds the classic strikethrough line
+  },
 });

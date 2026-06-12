@@ -6,7 +6,6 @@ import { C, globalStyles } from '../styles/theme';
 
 interface CartButtonProps {
   onPress?: () => void;
-  itemCount?: number; // Ready for when you want to show a counter or check if empty
 }
 
 export default function CartButton({ onPress }: CartButtonProps) {

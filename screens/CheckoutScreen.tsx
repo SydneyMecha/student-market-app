@@ -35,7 +35,7 @@ export default function CheckoutScreen({ onNavigate }: CheckoutScreenProps) {
       
       {/* Header */}
       <View style={globalStyles.headerRow}>
-        <TouchableOpacity style={globalStyles.iconBtn}>
+        <TouchableOpacity style={globalStyles.iconBtn} onPress={() => onNavigate("Cart")}>
           <Icon source="chevron-left" size={28} color={C.text} />
         </TouchableOpacity>
         <Text style={globalStyles.headerTitle}>Checkout</Text>

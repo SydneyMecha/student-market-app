@@ -13,7 +13,7 @@ import CartButton from '../components/CartButton';
 // Assuming you have ProductGrid available for the "Related Products" section
 import ProductGrid from '../components/ProductGrid'; 
 import { PRODUCTS } from '../types';
-import ProductSection from '../components/ProductSections';
+import ProductSection from '../components/ProductSection';
 
 // --- Mock Data for Layout ---
 const PRODUCT = {
@@ -150,6 +150,7 @@ export default function ProductDetailsScreen({ onNavigate }: ProductDetailsProps
         <ProductSection 
           title="Related Products" 
           products={PRODUCTS} 
+          showViewMore={false}
         />
 
       </ScrollView>

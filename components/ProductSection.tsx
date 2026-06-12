@@ -4,6 +4,8 @@ import { WooProduct } from '../types';
 import { globalStyles } from '../styles/theme';
 import SectionHeader from './SectionHeader';
 import ProductGrid from './ProductGrid';
+import { FlatList } from 'react-native';
+import ProductCard from './ProductCard';
 
 interface ProductSectionProps {
   title: string;
@@ -20,10 +22,22 @@ export default function ProductSection({ title, products, showViewMore }: Produc
     <SectionHeader 
       title={title} 
       onViewMore={() => {}} 
-      showViewMore={false}
+      showViewMore={showViewMore}
+    />
+
+    <FlatList
+      data={products}
+      horizontal
+      showsHorizontalScrollIndicator={false}
+      keyExtractor={(item: { id: { toString: () => any; }; }) => item.id.toString()}
+      renderItem={({ item }) => <ProductCard product={item} />}
+
+      initialNumToRender={3}
+      maxToRenderPerBatch={3}
+      windowSize={5}
+      removeClippedSubviews={true}
     />
     
-    <ProductGrid products={products} showViewMore={false} />
   </View>
 );
 }

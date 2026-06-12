@@ -12,7 +12,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Icon } from 'react-native-paper';
 import { C, globalStyles } from '../styles/theme';
 import { PRODUCTS } from '../types';
-import ProductSection from '../components/ProductSections';
+import ProductSection from '../components/ProductSection';
 
 const RECOMMENDATIONS = [1, 2, 3, 4];
 

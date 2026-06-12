@@ -33,5 +33,5 @@ const styles = StyleSheet.create({
     paddingBottom: 12,
   },
   titleText: { fontSize: 16, fontWeight: '700', color: C.text },
-  viewMoreText: { fontSize: 13, color: C.subtext, fontWeight: '500' },
+  viewMoreText: { fontSize: 16, color: C.primary, fontWeight: '500' },
 });

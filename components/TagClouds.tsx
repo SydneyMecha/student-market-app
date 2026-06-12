@@ -1,16 +1,15 @@
-import React, { useState } from 'react';
-import { View, Text, TouchableOpacity, LayoutAnimation } from 'react-native';
-import { globalStyles } from '../styles/theme';
+import React, { useState, useEffect } from 'react';
+import { View, Text, TouchableOpacity, LayoutAnimation, ActivityIndicator } from 'react-native';
+import { C, globalStyles } from '../styles/theme';
+import { fetchWooCommerce } from '../services/wooApi';
 
-const TAG_FILTERS = [
-  "Outerwears", "Ladies", "Fragrance", "Electronics", "Jewelries", 
-  "Dresses", "Home", "Trousers", "Shoes", "Bags", 
-  "Watches", "Sports", "Beauty", "Groceries", "Books", 
-  "Stationery", "Games", "Fitness", "Unisex", "Vintage",
-  "Hoodies", "Sneakers", "Belts", "Caps", "Socks",
-  "Skirts", "Shorts", "Suits", "Activewear", "Coats",
-  "Jewelry Boxes", "Perfumes", "Skin Care", "Hair Care", "Tech Tools"
-];
+// Interface representing the WooCommerce tag schema
+interface WooCommerceTag {
+  id: number;
+  name: string;
+  slug: string;
+  count: number;
+}
 
 interface TagCloudsProps {
   activeTag: string;
@@ -18,57 +17,88 @@ interface TagCloudsProps {
 }
 
 export default function TagClouds({ activeTag, onSelectTag }: TagCloudsProps) {
-  // 1. Set the initial visibility state to show exactly 20 tags first
+  const [tags, setTags] = useState<WooCommerceTag[]>([]);
+  const [loading, setLoading] = useState(true);
   const [visibleCount, setVisibleCount] = useState(20);
 
-  // 2. Compute true state boundaries
-  const isAllShown = visibleCount >= TAG_FILTERS.length;
-  
-  // Use .slice(0, visibleCount) to dynamically grab the visible window slice of tags
-  const visibleTags = TAG_FILTERS.slice(0, visibleCount);
+  // Fetch product tags dynamically on mount
+  useEffect(() => {
+    // Fetches top 50 tags, ordered by the number of products they contain
+    fetchWooCommerce('products/tags?per_page=50&orderby=count&order=desc')
+      .then((rawTags: any[]) => {
+        const formatted = rawTags.map((t) => ({
+          id: t.id,
+          name: t.name,
+          slug: t.slug,
+          count: t.count,
+        }));
+        setTags(formatted);
+      })
+      .catch((err: any) => {
+        console.error('[TagClouds fetch error]:', err);
+      })
+      .finally(() => setLoading(false));
+  }, []);
 
-  // 3. Handle the toggle action loop smoothly
+  // Compute true state boundaries using the dynamic tags array length
+  const isAllShown = visibleCount >= tags.length;
+  const visibleTags = tags.slice(0, visibleCount);
+
   const handleToggleLimit = () => {
-    // Configures native LayoutAnimation so items animate or fade into place elegantly
     LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
     
     if (isAllShown) {
-      // If everything is displayed, compress it back down to the first 20
       setVisibleCount(20);
     } else {
-      // Otherwise, unfold the next block of 20 items
-      setVisibleCount(prev => prev + 20);
+      setVisibleCount((prev) => prev + 20);
     }
   };
 
+  if (loading) {
+    return (
+      <View style={{ padding: 20, alignItems: 'center' }}>
+        <ActivityIndicator size="small" />
+      </View>
+    );
+  }
+
+  if (tags.length === 0) return null;
+
   return (
     <View style={globalStyles.tagCloud}>
-      {/* Render only the currently sliced window array */}
-      {visibleTags.map((tag) => (
-        <TouchableOpacity
-          key={tag}
-          onPress={() => onSelectTag(tag)}
-          style={globalStyles.tagChip}
+      {visibleTags.map((tag) => {
+        // Check if the current tag matches activeTag (using name or slug)
+        const isSelected = activeTag === tag.name || activeTag === tag.slug;
+
+        return (
+          <TouchableOpacity
+            key={tag.id} // Uses database ID as stable key
+            onPress={() => onSelectTag(tag.name)} // Change to tag.slug if your tag routing matches slugs
+            style={[
+              globalStyles.tagChip,
+              isSelected && { backgroundColor: '#E5E7EB' } // Optional highlight style for active tags
+            ]}
+            activeOpacity={0.8}
+          >
+            <Text style={globalStyles.tagChipText}>
+              {tag.name}
+            </Text>
+          </TouchableOpacity>
+        );
+      })}
+      
+      {/* Show more/less button only if there are more than 20 tags */}
+      {tags.length > 20 && (
+        <TouchableOpacity 
+          style={[globalStyles.tagChip, {backgroundColor: C.primary}]} 
+          onPress={handleToggleLimit}
           activeOpacity={0.8}
         >
-          <Text 
-            style={[globalStyles.tagChipText]}
-          >
-            {tag}
+          <Text style={[globalStyles.tagChipText, {color: C.white}]}>
+            {isAllShown ? "Show Less  ▴" : "See More  ▾"}
           </Text>
         </TouchableOpacity>
-      ))}
-      
-      {/* 4. Dynamic Action Control Trigger Button */}
-      <TouchableOpacity 
-        style={globalStyles.tagChip} 
-        onPress={handleToggleLimit}
-        activeOpacity={0.8}
-      >
-        <Text style={globalStyles.tagChipText}>
-          {isAllShown ? "Show Less  ▴" : "See More  ▾"}
-        </Text>
-      </TouchableOpacity>
+      )}
     </View>
   );
 }

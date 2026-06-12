@@ -1,25 +1,33 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ImageBackground } from 'react-native';
 import { Icon } from 'react-native-paper';
 import { C } from '../styles/theme';
 import { Vendor } from '../screens/VendorsScreen';
 
 interface VendorCardProps {
   vendor: Vendor;
-  onPress: () => void;
+  onPress: (screenName: string) => void;
 }
 
 export default function VendorCard({ vendor, onPress }: VendorCardProps) {
   return (
     <TouchableOpacity 
       style={styles.cardContainer} 
-      onPress={onPress}
+      onPress={() => onPress("VendorInfo")}
       activeOpacity={0.7}
     >
       {/* Left: Image Placeholder */}
       <View style={styles.imagePlaceholder}>
         <Icon source="storefront-outline" size={28} color="rgba(255,255,255,0.7)" />
       </View>
+
+      {/* <View style={styles.imagePlaceholder}>
+        {vendor.gravatar ? (
+          <ImageBackground source={{ uri: vendor.gravatar }} style={styles.avatarImage} imageStyle={{ borderRadius: 46 }} />
+        ) : (
+          <Icon source="storefront-outline" size={50} color={C.white} />
+        )}
+      </View> */}
 
       {/* Middle: Vendor Details */}
       <View style={styles.infoContainer}>

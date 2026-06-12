@@ -28,14 +28,14 @@ export default function TabBar({
             onPress={() => onSelect(t)}
             style={[
               isPill ? styles.tabPill : styles.chipTag,
-              isActive && (isPill ? styles.tabPillActive : styles.chipTagActive),
+              isActive && (isPill ? styles.tabPillActive : null),
             ]}
             activeOpacity={0.8}
           >
             <Text
               style={[
                 isPill ? styles.tabPillText : styles.chipTagText,
-                isActive && (isPill ? styles.tabPillTextActive : styles.chipTagTextActive),
+                isActive && (isPill ? styles.tabPillTextActive : null),
               ]}
             >
               {t}
@@ -49,11 +49,14 @@ export default function TabBar({
 
 const styles = StyleSheet.create({
   tabScroll: { 
+    flex: 1,
     paddingHorizontal: 16,
     paddingVertical: 12,
-    gap: 16, 
+    gap: 8,
   },
   tabPill: {
+    flex: 1,
+    alignItems: 'center',
     paddingHorizontal: 24,
     paddingVertical: 10,
     borderRadius: 24,
@@ -62,8 +65,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'transparent',
   },
   tabPillActive: { 
-    backgroundColor: 'transparent',
-    borderColor: 'C:primary', 
+    borderColor: C.primary,
   },
   tabPillText: { 
     fontSize: 14, 
@@ -83,7 +85,5 @@ const styles = StyleSheet.create({
     borderColor: C.tagBorder,
     backgroundColor: C.surface,
   },
-  chipTagActive: { backgroundColor: C.primary },
   chipTagText: { fontSize: 13, color: C.subtext, fontWeight: "500" },
-  chipTagTextActive: { color: C.surface, fontWeight: "700" },
 });

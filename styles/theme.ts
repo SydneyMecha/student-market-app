@@ -2,6 +2,7 @@ import { StyleSheet, Dimensions } from 'react-native';
 
 export const C = {
   primary: "#12452f",
+  secondary: "#1C4A3A",
   accent: "#EDAA2E",
   surface: "#FCFCFC",
   white: "#FFFFFF",
@@ -23,6 +24,14 @@ export const C = {
 };
 
 export const globalStyles = StyleSheet.create({
+    appContainer: {
+    flex: 1,
+    backgroundColor: C.bg,
+  },
+  mainContentWindow: {
+    flex: 1, // Forces the screen content window to fill all available space above the navbar
+  },
+
   safe: { flex: 1, backgroundColor: C.surface },
   scroll: { flex: 1, backgroundColor: C.bg },
   scrollContent: { paddingBottom: 16 },
@@ -50,13 +59,23 @@ export const globalStyles = StyleSheet.create({
     position: 'relative',
   },
 
+  // Category Wrapper
   featuredSectionFrame: {
     backgroundColor: C.white,
     borderRadius: 24,
     marginHorizontal: 12,
     paddingVertical: 16,
-    marginTop: 12,
     marginBottom: 12,
+  },
+
+  // Popular tags
+  horizontalScrollWrapper: {
+    marginVertical: 12,
+  },
+  horizontalScrollContent: {
+    paddingHorizontal: 16, // Matches your screen margins
+    flexDirection: 'row',
+    alignItems: 'center',
   },
 
   // Tag cloud
