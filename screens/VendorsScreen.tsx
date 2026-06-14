@@ -9,7 +9,7 @@ import {
   TextInput,
 } from "react-native";
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Icon, Menu } from 'react-native-paper'; // Imported Menu locally
+import { Icon, Menu } from 'react-native-paper'; 
 import { C, globalStyles } from '../styles/theme';
 import { BASE_URL } from '../services/wooApi';
 import CartButton from '../components/CartButton';
@@ -34,8 +34,9 @@ export default function VendorsScreen({ onNavigate }: VendorsScreenProps) {
 
   // Sorting & Menu States
   const [menuVisible, setMenuVisible] = useState(false);
-  const [sortBy, setSortBy] = useState('registered'); 
-  const [sortLabel, setSortLabel] = useState('Most Recent');
+  
+  const [sortBy, setSortBy] = useState('oldest'); 
+  const [sortLabel, setSortLabel] = useState('Oldest First');
   
   // Pagination & Loading States
   const [page, setPage] = useState(1);
@@ -45,21 +46,22 @@ export default function VendorsScreen({ onNavigate }: VendorsScreenProps) {
   const [hasMore, setHasMore] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // ─── 1. Centralized Fetch Logic ───────────────────────────────────────────
-  const fetchVendors = (targetPage: number, searchString = '', sortOption = 'registered', isRefresh = false) => {
+  // ─── Centralized Fetch Logic ───────────────────────────────────────────
+  const fetchVendors = (targetPage: number, searchString = '', sortOption = 'oldest', isRefresh = false) => {
     let sortParams = '';
 
-    if (sortOption === 'registered') {
+    // Updated parameter mapping to handle both 'oldest' (asc) and 'registered' (desc)
+    if (sortOption === 'oldest') {
+      sortParams = '&orderby=registered&order=asc';
+    } else if (sortOption === 'registered') {
       sortParams = '&orderby=registered&order=desc';
     } else if (sortOption === 'rating') {
-      sortParams = '&orderby=rating&order=desc'; // Orders by average reviews in Dokan
+      sortParams = '&orderby=rating&order=desc'; 
     } else if (sortOption === 'rand') {
-      sortParams = '&orderby=rand'; // Handled by WP SQL filter
+      sortParams = '&orderby=rand'; 
     }
     
     const searchParam = searchString ? `&search=${searchString}` : '';
-    
-    // BUG FIX: Appended ${sortParams} dynamically to the end of the query URL string!
     const url = `${BASE_URL}/wp-json/dokan/v1/stores?per_page=15&page=${targetPage}${searchParam}${sortParams}`;
 
     return fetch(url)
@@ -103,7 +105,6 @@ export default function VendorsScreen({ onNavigate }: VendorsScreenProps) {
       });
   };
 
-  // ─── 2. Initial Fetch (Page 1) ───────────────────────────────────────────
   useEffect(() => {
     setLoading(true);
     setPage(1);
@@ -111,7 +112,6 @@ export default function VendorsScreen({ onNavigate }: VendorsScreenProps) {
     fetchVendors(1, searchQuery, sortBy).finally(() => setLoading(false));
   }, [sortBy]);
 
-  // ─── 3. Server-Side Debounced Searching ──────────────────────────────────
   useEffect(() => {
     if (loading && page === 1 && vendors.length === 0) return;
 
@@ -125,7 +125,6 @@ export default function VendorsScreen({ onNavigate }: VendorsScreenProps) {
     return () => clearTimeout(delayDebounceFn);
   }, [searchQuery]);
 
-  // ─── 4. Endless Scroll Trigger ───────────────────────────────────────────
   const handleLoadMore = () => {
     if (loading || loadingMore || !hasMore) return;
 
@@ -136,7 +135,6 @@ export default function VendorsScreen({ onNavigate }: VendorsScreenProps) {
     fetchVendors(nextPage, searchQuery, sortBy).finally(() => setLoadingMore(false));
   };
 
-  // ─── 5. Pull-To-Refresh Trigger ──────────────────────────────────────────
   const handleRefresh = () => {
     setRefreshing(true);
     setPage(1);
@@ -158,7 +156,7 @@ export default function VendorsScreen({ onNavigate }: VendorsScreenProps) {
         <CartButton onPress={() => onNavigate("Cart")} />
       </View>
 
-      {/* ─── 6. Dedicated Inline Search & Filter Row ─── */}
+      {/* Filter & Search Bar Row */}
       <View style={styles.searchRow}>
         
         {/* Localized Dokan Vendor Filter Menu */}
@@ -175,6 +173,14 @@ export default function VendorsScreen({ onNavigate }: VendorsScreenProps) {
             </TouchableOpacity>
           }
         >
+          <Menu.Item 
+            onPress={() => {
+              setSortBy('oldest');
+              setSortLabel('Oldest First');
+              setMenuVisible(false);
+            }} 
+            title="Oldest First" 
+          />
           <Menu.Item 
             onPress={() => {
               setSortBy('registered');
@@ -201,7 +207,6 @@ export default function VendorsScreen({ onNavigate }: VendorsScreenProps) {
           />
         </Menu>
 
-        {/* Custom Styled Search Input Box */}
         <View style={styles.searchBarContainer}>
           <View style={styles.searchBarInputRow}>
             <Icon source="magnify" size={20} color={C.subtext} />
@@ -278,15 +283,13 @@ const styles = StyleSheet.create({
     backgroundColor: C.surface,
   },
   headerTitle: { fontSize: 20, fontWeight: '700', color: C.text },
-  
-  // ─── LOCALIZED SEARCH ROW STYLES ───
   searchRow: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 16,
     paddingVertical: 12,
     gap: 16,
-    zIndex: 9999, // Floating Menu Touch Priority Fix
+    zIndex: 9999, 
     position: 'relative',
   },
   filterBtn: { padding: 4 },
@@ -308,7 +311,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: C.text,
   },
-  
   listContent: {
     paddingHorizontal: 16,
     paddingBottom: 40,

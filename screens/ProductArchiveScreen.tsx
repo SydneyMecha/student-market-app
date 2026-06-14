@@ -23,8 +23,8 @@ export interface ArchiveParam {
 }
 
 interface ProductArchiveScreenProps {
-  archiveParam: ArchiveParam; // Holds type, id, and display name
-  onNavigate: (screenName: string, params?: any) => void; // Updated signature
+  archiveParam: ArchiveParam;
+  onNavigate: (screenName: string, params?: any) => void;
   onGoBack: () => void;
 }
 
@@ -32,7 +32,7 @@ export default function ProductArchiveScreen({
   archiveParam,
   onNavigate,
   onGoBack
-}: ProductArchiveScreenProps) { // Removed 'onSelectProduct'
+}: ProductArchiveScreenProps) {
   const flatListRef = useRef<FlatList>(null);
 
   const [products, setProducts] = useState<any[]>([]);
@@ -40,7 +40,7 @@ export default function ProductArchiveScreen({
   
   // Sorting & Menu States
   const [menuVisible, setMenuVisible] = useState(false);
-  const [sortOption, setSortOption] = useState('date_desc'); // default to latest
+  const [sortOption, setSortOption] = useState('date_desc');
   const [sortLabel, setSortLabel] = useState('Sort by latest');
 
   // Pagination & Loading States
@@ -54,7 +54,7 @@ export default function ProductArchiveScreen({
   // Page Title
   const pageTitle = archiveParam ? archiveParam.name : 'Products';
 
-  // ─── 1. Fetch Products dynamically ──────────────────────────────────────────
+  // ─── Fetch Products dynamically ──────────────────────────────────────────
   const fetchArchiveProducts = (targetPage: number, searchString = '', sortType = 'date_desc', isRefresh = false) => {
     let sortTypeToUse = sortType;
     if (archiveParam.type === 'popular' && sortType === 'date_desc') {
@@ -89,13 +89,13 @@ export default function ProductArchiveScreen({
     } else if (archiveParam.type === 'category') {
       filterParam = `&category=${archiveParam.id}`;
     } else if (archiveParam.type === 'on_sale') {
-      filterParam = `&on_sale=true`; // Triggers offers archive
+      filterParam = `&on_sale=true`;
     } else if (archiveParam.type === 'featured') {
       filterParam = `&featured=true`;
     }
 
     const searchParam = searchString ? `&search=${searchString}` : '';
-    const endpoint = `products?per_page=12&page=${targetPage}${filterParam}${searchParam}${sortParams}`;
+    const endpoint = `products?per_page=12&page=${targetPage}${filterParam}${searchParam}${sortParams}&stock_status=instock`;
 
     return fetchWooCommerce(endpoint)
       .then((raw) => {
@@ -104,7 +104,6 @@ export default function ProductArchiveScreen({
         if (isRefresh || targetPage === 1) {
           setProducts(mapped);
         } else {
-          // Append lazy loaded items to existing grid
           setProducts((prev) => {
             const existingIds = new Set(prev.map(p => p.id));
             const uniqueNew = mapped.filter((p: { id: any; }) => !existingIds.has(p.id));
@@ -125,7 +124,7 @@ export default function ProductArchiveScreen({
       });
   };
 
-  // ─── 2. Initial Page Load ───
+  // ─── Initial Page Load ───
   useEffect(() => {
     if (!archiveParam) return;
     setLoading(true);
@@ -134,7 +133,7 @@ export default function ProductArchiveScreen({
     fetchArchiveProducts(1, searchQuery, sortOption).finally(() => setLoading(false));
   }, [archiveParam?.type, archiveParam?.id, sortOption]);
 
-  // ─── 3. Server-Side Debounced Searching ───
+  // ─── Server-Side Debounced Searching ───
   useEffect(() => {
     if (loading && page === 1 && products.length === 0) return;
 
@@ -148,7 +147,7 @@ export default function ProductArchiveScreen({
     return () => clearTimeout(delayDebounceFn);
   }, [searchQuery]);
 
-  // ─── 4. Endless Scroll Pagination trigger ───
+  // ─── Endless Scroll Pagination trigger ───
   const handleLoadMore = () => {
     if (loading || loadingMore || !hasMore) return;
 
@@ -159,7 +158,7 @@ export default function ProductArchiveScreen({
     fetchArchiveProducts(nextPage, searchQuery, sortOption).finally(() => setLoadingMore(false));
   };
 
-  // ─── 5. Pull-To-Refresh trigger ───
+  // ─── Pull-To-Refresh trigger ───
   const handleRefresh = () => {
     setRefreshing(true);
     setPage(1);
@@ -332,8 +331,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 12,
     gap: 16,
-    
-    // ─── CRITICAL TOUCH PRIORITY FIXES ───
     zIndex: 9999,       
     position: 'relative', 
   },

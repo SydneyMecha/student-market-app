@@ -3,7 +3,6 @@ import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { C } from '../styles/theme';
 import { Icon } from 'react-native-paper';
 
-// 1. Define the props so the parent component can control the navigation state
 interface BottomNavProps {
   activeTab: string;
   onTabPress: (tabName: string) => void;
@@ -11,7 +10,6 @@ interface BottomNavProps {
 
 export default function BottomNav({ activeTab, onTabPress }: BottomNavProps) {
   const items = [
-    // Tweaked the inactive Home icon to 'home-outline' so it matches the outlined style of the others!
     { label: "Home",    icon: "home-outline",       iconActive: "home" },
     { label: "Categories",    icon: "menu",               iconActive: "menu" },
     { label: "Vendors",    icon: "storefront-outline", iconActive: "storefront" },
@@ -55,7 +53,7 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: C.border,
     paddingVertical: 8,
-    paddingBottom: 20, // Clean safe-area breathing space for modern iPhones
+    paddingBottom: 20,
   },
   navItem: { 
     flex: 1, 
@@ -63,16 +61,14 @@ const styles = StyleSheet.create({
     justifyContent: "center", 
     gap: 4 
   },
-  // The universal base layout container for the icon hitboxes
   navIconContainer: {
     width: 44,
     height: 44,
     borderRadius: 24,
-    backgroundColor: 'transparent', // Invisible by default when unselected
+    backgroundColor: 'transparent',
     alignItems: "center",
     justifyContent: "center",
   },
-  // Snaps your signature brand green color background dynamically on selection
   navIconActive: { 
     backgroundColor: C.primary,
     borderRadius: 32,

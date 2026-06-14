@@ -10,8 +10,10 @@ import {
   ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
+  Linking
 } from "react-native";
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { Icon } from 'react-native-paper';
 import { C } from '../styles/theme';
 import { fetchWooCommerce } from '../services/wooApi';
 
@@ -21,13 +23,14 @@ import SignUpForm from '../components/SignUpForm';
 interface AuthScreenProps {
   onNavigate: (screenName: string, params?: any) => void;
   onLoginSuccess: (customer: any) => void; 
+  onGoBack?: () => void;
 }
 
-export default function AuthScreen({ onNavigate, onLoginSuccess }: AuthScreenProps) {
+export default function AuthScreen({ onNavigate, onLoginSuccess, onGoBack }: AuthScreenProps) {
   const [authMode, setAuthMode] = useState<'login' | 'signup'>('login');
   const [loading, setLoading] = useState(false);
 
-  // ─── 1. Live WooCommerce LOGIN session resolver ───
+  // ─── Live WooCommerce LOGIN session resolver ───
   const handleLogin = (emailAddress: string) => {
     if (!emailAddress || emailAddress.trim().length === 0) {
       Alert.alert("Input Required", "Please enter your email address to log in.");
@@ -39,7 +42,20 @@ export default function AuthScreen({ onNavigate, onLoginSuccess }: AuthScreenPro
     fetchWooCommerce(`customers?email=${emailAddress.trim().toLowerCase()}`)
       .then((raw: any[]) => {
         if (raw.length === 0) {
-          Alert.alert("Account Not Found", "No customer account exists for this email. Please check your spelling or Sign Up. If it's a vendor account, please use the website.");
+          Alert.alert(
+            "Account Not Found", 
+            "No customer account exists for this email. Please check your spelling or Sign Up. \n\nIf it's a vendor account, please use the website.",
+            [
+              { 
+                text: "Dismiss", 
+                style: "cancel" 
+              },
+              { 
+                text: "Go to Website", 
+                onPress: () => Linking.openURL('https://studentmarket.co.ke/my-account/') 
+              }
+            ]
+          );
           return;
         }
 
@@ -50,8 +66,6 @@ export default function AuthScreen({ onNavigate, onLoginSuccess }: AuthScreenPro
           username: customer.display_name || customer.username || "NaN",
           email: customer.email || "NaN",
           fullName: `${customer.first_name || ''} ${customer.last_name || ''}`.trim() || "NaN",
-          
-          // Maps the secure auto-login URL:
           autologin_url: customer.edit_account_autologin_url || "https://studentmarket.co.ke/my-account/edit-account/",
           
           billing: {
@@ -74,7 +88,7 @@ export default function AuthScreen({ onNavigate, onLoginSuccess }: AuthScreenPro
       .finally(() => setLoading(false));
   };
 
-  // ─── 2. Live WooCommerce SIGN UP creator ───
+  // ─── Live WooCommerce SIGN UP creator ───
   const handleRegister = (emailAddress: string) => {
     if (!emailAddress || emailAddress.trim().length === 0) {
       Alert.alert("Input Required", "Please enter an email address to register.");
@@ -83,7 +97,6 @@ export default function AuthScreen({ onNavigate, onLoginSuccess }: AuthScreenPro
 
     setLoading(true);
 
-    // Generate a default clean username from the prefix of their email address
     const generatedUsername = emailAddress.split('@')[0] + Math.floor(100 + Math.random() * 900);
 
     const customerPayload = {
@@ -91,7 +104,6 @@ export default function AuthScreen({ onNavigate, onLoginSuccess }: AuthScreenPro
       username: generatedUsername,
     };
 
-    // Post new customer to WooCommerce customers database
     fetchWooCommerce('customers', {
       method: 'POST',
       body: JSON.stringify(customerPayload),
@@ -100,7 +112,6 @@ export default function AuthScreen({ onNavigate, onLoginSuccess }: AuthScreenPro
       }
     })
     .then((newCustomer) => {
-      // SUCCESS: WordPress has successfully queued up and dispatched the password reset email!
       Alert.alert(
         "Registration Successful",
         `Welcome! A link to configure your temporary password has been successfully sent to ${emailAddress}.`,
@@ -108,14 +119,11 @@ export default function AuthScreen({ onNavigate, onLoginSuccess }: AuthScreenPro
           { 
             text: "OK", 
             onPress: () => {
-              // Log them in immediately and redirect to Profile
               onLoginSuccess({
                 id: newCustomer.id,
-                // Updated to map the custom display_name, falling back safely to username
                 username: newCustomer.display_name || newCustomer.username || "NaN", 
                 email: newCustomer.email || "NaN",
                 fullName: `${newCustomer.first_name || ''} ${newCustomer.last_name || ''}`.trim() || "NaN",
-
                 autologin_url: newCustomer.edit_account_autologin_url || "https://studentmarket.co.ke/my-account/edit-account/",
                 
                 billing: {
@@ -156,21 +164,29 @@ export default function AuthScreen({ onNavigate, onLoginSuccess }: AuthScreenPro
           </View>
         ) : (
           <ScrollView showsVerticalScrollIndicator={false} bounces={false}>
-            {/* Deep Green Brand Hero Block */}
             <View style={styles.heroHeader}>
                 <SafeAreaView style={styles.heroSafeArea}>
+                    
+                    {onGoBack && (
+                      <TouchableOpacity 
+                        style={styles.backButton} 
+                        onPress={onGoBack}
+                        activeOpacity={0.7}
+                      >
+                        <Icon source="chevron-left" size={24} color={C.white} />
+                      </TouchableOpacity>
+                    )}
+
                     <View style={styles.heroContent}>
-                    <Image source={require('../assets/Logo.png')} style={styles.brandLogo} resizeMode="contain" />
-                    <Text style={styles.welcomeText}>
-                        {authMode === 'login' ? 'Welcome Back' : 'Create Account'}
-                    </Text>
+                      <Image source={require('../assets/Logo.png')} style={styles.brandLogo} resizeMode="contain" />
+                      <Text style={styles.welcomeText}>
+                          {authMode === 'login' ? 'Welcome Back' : 'Create Account'}
+                      </Text>
                     </View>
                 </SafeAreaView>
             </View>
 
-            {/* White Content Canvas */}
             <View style={styles.contentArea}>
-              {/* Mode Toggle Pill */}
               <View style={styles.toggleContainer}>
                 <TouchableOpacity style={[styles.toggleBtn, authMode === 'login' && styles.toggleBtnActive]} onPress={() => setAuthMode('login')} activeOpacity={0.8}>
                   <Text style={[styles.toggleText, authMode === 'login' && styles.toggleTextActive]}>Log In</Text>
@@ -180,13 +196,10 @@ export default function AuthScreen({ onNavigate, onLoginSuccess }: AuthScreenPro
                 </TouchableOpacity>
               </View>
 
-              {/* Dynamic Forms rendering */}
               <View style={styles.formWrapper}>
                 {authMode === 'login' ? (
-                  // Bound Log In button to lookups
                   <LoginForm onLogin={(email) => handleLogin(email)} />
                 ) : (
-                  // Bound Sign Up button to creations
                   <SignUpForm onRegister={(email) => handleRegister(email)} />
                 )}
               </View>
@@ -205,12 +218,26 @@ const styles = StyleSheet.create({
     height: 320,
     borderBottomLeftRadius: 32,
     borderBottomRightRadius: 32,
+    position: 'relative',
   },
   heroSafeArea: { flex: 1 },
   heroContent: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  backButton: {
+    position: 'absolute',
+    top: Platform.OS === 'ios' ? 12 : 40, // Places safely below different notch heights
+    left: 16,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    borderWidth: 1.5,
+    borderColor: C.white,
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 999,
   },
   brandLogo: {
     width: 90,        

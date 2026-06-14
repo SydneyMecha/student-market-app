@@ -1,8 +1,9 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { View, StyleSheet } from "react-native";
 import { PaperProvider } from "react-native-paper";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { C } from './styles/theme';
+import { updateGlobalCartCount } from './services/cartState';
 
 import HomeScreen from "./screens/HomeScreen";
 import ProductDetailsScreen from "./screens/ProductDetailsScreen";
@@ -16,44 +17,75 @@ import ProductArchiveScreen from './screens/ProductArchiveScreen';
 import ProfileScreen from './screens/ProfileScreen';
 import EditProfileScreen from './screens/EditProfileScreen';
 import AuthScreen from './screens/AuthScreen';
+import OrdersScreen from './screens/OrdersScreen';
 
 import BottomNav from "./components/BottomNav";
 
-const screensWithoutBottomNav = ["Cart", "Checkout", "OrderConfirmation", "EditProfile", "Auth"];
+const screensWithoutBottomNav = ["Cart", "Checkout", "OrderConfirmation", "EditProfile", "Auth", "ProductDetails", "VendorInfo" ];
 
 export default function App() {
-  // 1. Single source of truth for all routing, parameters, and history stacks
+  // ─── 1. ALL STATE HOOKS MOVED TO THE ABSOLUTE TOP OF THE COMPONENT ───
   const [history, setHistory] = useState([{ screen: "Home", params: null }]);
+  const [cartItems, setCartItems] = useState([]);
+  const [currentUser, setCurrentUser] = useState(null);
 
-  // 2. Dynamically calculate active tabs and params (prevents out-of-sync loops)
+  // 2. Computed variables (Safe from temporal dead-zones now!)
   const currentRoute = history[history.length - 1];
   const activeTab = currentRoute.screen;
   const params = currentRoute.params;
 
-  // Cart States (Global Marketplace Basket)
-  const [cartItems, setCartItems] = useState([]);  
+  // Automatically broadcast any additions, subtractions, or cart clears
+  useEffect(() => {
+    updateGlobalCartCount(cartItems.length);
+  }, [cartItems]);
 
-  const [currentUser, setCurrentUser] = useState(null);
-
-  // Navigation Forward (Push)
-  const navigateTo = (screen, params = null) => {
-    setHistory((prev) => [...prev, { screen, params }]); // Shorthand for { screen: screen, params: params }
+  // 3. Navigation Forward (Push)
+  const navigateTo = (screen, screenParams = null) => {
+    setHistory((prev) => [...prev, { screen, params: screenParams }]);
   };
 
-  // Navigation Backward (Pop)
+  // 4. Navigation Backward (Pop)
   const navigateBack = () => {
     setHistory((prev) => {
-      if (prev.length <= 1) return [{ screen: "Home", params: null }]; // Don't pop past Home
+      if (prev.length <= 1) return [{ screen: "Home", params: null }];
       const updated = [...prev];
-      updated.pop(); // Safely pop the top screen off the stack
+      updated.pop();
       return updated;
     });
   };
 
+  // 5. Global Basket State Handlers
+  const addToCart = (product, qty) => {
+    setCartItems((prev) => {
+      const existingIndex = prev.findIndex((item) => item.id === product.id);
+      if (existingIndex > -1) {
+        const updated = [...prev];
+        updated[existingIndex].qty += qty;
+        return updated;
+      } else {
+        return [...prev, { ...product, qty }];
+      }
+    });
+  };
+
+   const updateCartQty = (id, delta) => {
+    setCartItems((prev) =>
+      prev.map((item) =>
+        item.id === id ? { ...item, qty: Math.max(1, item.qty + delta) } : item
+      )
+    );
+  };
+
+  const removeFromCart = (id) => {
+    setCartItems((prev) => prev.filter((item) => item.id !== id));
+  };
+
+  const clearCart = () => setCartItems([]);
+
   const renderScreen = () => {
     switch (activeTab) {
       case "Home":
-        return null; // Handled by permanent background mount
+        return null;
       case "ProductDetails":
         return (
           <ProductDetailsScreen 
@@ -77,19 +109,21 @@ export default function App() {
             onGoBack={navigateBack}
           />
         );
-      case "Checkout":
+       case "Checkout":
         return (
           <CheckoutScreen 
             routeParams={params} 
-            currentUser={currentUser} // Pass active user state down
+            currentUser={currentUser}
             onNavigate={navigateTo} 
-            onLoginSuccess={(user) => setCurrentUser(user)} // Pass setter down
+            onLoginSuccess={(user) => setCurrentUser(user)}
+            onGoBack={navigateBack}
+            onClearCart={clearCart}
           />
         );
       case "OrderConfirmation":
         return (
           <OrderConfirmationScreen 
-            order={params}
+            order={params} 
             onNavigate={navigateTo} 
           />
         );
@@ -118,22 +152,30 @@ export default function App() {
       case "Profile":
         return (
           <ProfileScreen 
-            currentUser={currentUser} 
+            currentUser={currentUser}
             onNavigate={navigateTo} 
+            onProfileUpdate={(updatedUser) => setCurrentUser(updatedUser)}
             onLogout={() => {
-              // Clear session and return to Home
               setCurrentUser(null);
-              setHistory([{ screen: "Home", params: null }]);
+              setHistory([{ screen: "Auth", params: null }]);
             }}
           />
         );
       case "EditProfile":
         return (
           <EditProfileScreen 
-            routeParams={params} // Holds { mode: 'personal' | 'address' }
-            currentUser={currentUser} // Pass the active logged-in customer down
+            routeParams={params} 
+            currentUser={currentUser}
             onNavigate={navigateTo} 
-            onProfileUpdate={(updatedUser) => setCurrentUser(updatedUser)} // Pass state updater down
+            onProfileUpdate={(updatedUser) => setCurrentUser(updatedUser)}
+          />
+        );
+      case "OrdersList":
+        return (
+          <OrdersScreen 
+            currentUser={currentUser} // Passes active user session
+            onNavigate={navigateTo} 
+            onGoBack={navigateBack}
           />
         );
       case "Auth":
@@ -141,9 +183,10 @@ export default function App() {
           <AuthScreen 
             onNavigate={navigateTo} 
             onLoginSuccess={(customer) => {
-              setCurrentUser(customer); // Save resolved customer profile
-              setHistory([{ screen: "Profile", params: null }]); // Redirect instantly to Profile
+              setCurrentUser(customer); 
+              setHistory([{ screen: "Profile", params: null }]); 
             }}
+            onGoBack={navigateBack}
           />
         );
       default:
@@ -151,48 +194,28 @@ export default function App() {
     }
   };
 
-  // ─── Global Basket State Handlers ───
-  const addToCart = (product, qty) => {
-    setCartItems((prev) => {
-      const existingIndex = prev.findIndex((item) => item.id === product.id);
-      if (existingIndex > -1) {
-        const updated = [...prev];
-        updated[existingIndex].qty += qty;
-        return updated;
-      } else {
-        return [...prev, { ...product, qty }];
-      }
-    });
-  };
-
-  const updateCartQty = (id, delta) => {
-    setCartItems((prev) =>
-      prev.map((item) =>
-        item.id === id ? { ...item, qty: Math.max(1, item.qty + delta) } : item
-      )
-    );
-  };
-
-  const removeFromCart = (id) => {
-    setCartItems((prev) => prev.filter((item) => item.id !== id));
-  };
-
-  const clearCart = () => setCartItems([]);
-
   return (
     <SafeAreaProvider>
       <PaperProvider>
         <View style={styles.appContainer}>
           <View style={styles.mainContentWindow}>
             
-            {/* Permanent background mount for Home screen */}
+            {/* ── 1. Permanent background mount for Home screen ── */}
             <View style={activeTab !== "Home" ? { display: "none", height: 0, width: 0 } : { flex: 1 }}>
               <HomeScreen 
                 onNavigate={navigateTo} 
               />
             </View>
 
-            {activeTab !== "Home" && renderScreen()}
+            {/* ── 2. Permanent background mount for Categories screen (PRESERVES STATE) ── */}
+            <View style={activeTab !== "Categories" ? { display: "none", height: 0, width: 0 } : { flex: 1 }}>
+              <CategoriesScreen 
+                onNavigate={navigateTo} 
+              />
+            </View>
+
+            {/* Render other temporary screens dynamically */}
+            {activeTab !== "Home" && activeTab !== "Categories" && renderScreen()}
           </View>
 
           {/* BottomNav */}
@@ -200,7 +223,6 @@ export default function App() {
             <BottomNav 
               activeTab={activeTab} 
               onTabPress={(tabName) => {
-                // If user taps Profile and is NOT logged in, redirect them to Auth!
                 if (tabName === "Profile" && !currentUser) {
                   navigateTo("Auth");
                 } else {

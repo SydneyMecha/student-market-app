@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   View, 
   Text, 
@@ -7,6 +7,10 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   Linking, 
+  Modal,
+  Platform,
+  Animated,
+  PanResponder,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Icon } from 'react-native-paper';
@@ -17,6 +21,7 @@ import { adaptWooProductToUI } from '../utils/adapters';
 import { decodeHTMLEntities } from '../utils/stringUtils';
 import CartButton from '../components/CartButton';
 import ProductSection from '../components/ProductSection';
+import ShareButton from '../components/ShareButton';
 
 const formatDescription = (html: string) => {
   if (!html) return '';
@@ -34,12 +39,13 @@ interface WooProduct {
   banner: any;
   id: number;
   name: string;
+  slug: string;
   price: string;
   regular_price: string;
   description: string;
   related_ids: number[];
-  whatsapp_number?: string | null; // Resolved phone number
-  whatsapp_message?: string | null; // Resolved custom message
+  whatsapp_number?: string | null;
+  whatsapp_message?: string | null;
   store?: { 
     id: number; 
     name: string; 
@@ -75,12 +81,68 @@ export default function ProductDetailsScreen({
   const [relatedProducts, setRelatedProducts] = useState<any[]>([]);
   const [loadingRelated, setLoadingRelated] = useState(false);
   const [productHistory, setProductHistory] = useState<any[]>([]);
-
+  const [isModalVisible, setIsModalVisible] = useState(false); 
+  const [isOutOfStock, setIsOutOfStock] = useState(false);
   const isAlreadyInCart = cartItems.some(item => item.id === product.id);
+
+  // ─── PINCH-TO-ZOOM GESTURE ENGINE ───
+  const scale = useRef(new Animated.Value(1)).current; 
+  let initialDist = 0; 
+
+  const panResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponder: () => true,
+      onPanResponderGrant: (evt) => {
+        const touches = evt.nativeEvent.touches;
+        if (touches.length >= 2) {
+          initialDist = Math.sqrt(
+            Math.pow(touches[0].pageX - touches[1].pageX, 2) +
+            Math.pow(touches[0].pageY - touches[1].pageY, 2)
+          );
+        }
+      },
+      onPanResponderMove: (evt) => {
+        const touches = evt.nativeEvent.touches;
+        if (touches.length >= 2 && initialDist > 0) {
+          const currentDist = Math.sqrt(
+            Math.pow(touches[0].pageX - touches[1].pageX, 2) +
+            Math.pow(touches[0].pageY - touches[1].pageY, 2)
+          );
+          const newScale = currentDist / initialDist;
+          const clampedScale = Math.max(1, Math.min(newScale, 3.5));
+          scale.setValue(clampedScale);
+        }
+      },
+      onPanResponderRelease: () => {
+        initialDist = 0;
+        // Springs the image back to 1x original size on release
+        Animated.spring(scale, {
+          toValue: 1,
+          friction: 6,
+          tension: 40,
+          useNativeDriver: true, // GPU Hardware accelerated
+        }).start();
+      },
+    })
+  ).current;
 
   const bannerSource = product?.banner 
     ? { uri: product.banner } 
     : require('../assets/default-store-banner.png');
+
+  // JIT Stock Validator effect
+  useEffect(() => {
+    if (!product?.id) return;
+
+    fetchWooCommerce(`products/${product.id}`)
+      .then((freshProduct) => {
+        const soldOut = freshProduct.stock_status === 'outofstock' || 
+          (freshProduct.manage_stock && freshProduct.stock_quantity === 0);
+        setIsOutOfStock(soldOut);
+      })
+      .catch((err) => console.error('[JIT Stock Validation Error]:', err));
+  }, [product?.id]);
 
   useEffect(() => {
     if (!product?.related_ids || product.related_ids.length === 0) return;
@@ -124,20 +186,21 @@ export default function ProductDetailsScreen({
     onNavigate("ProductDetails", clickedProduct);
   };
 
-  // 1. Upgraded dynamic checkout routing trigger
   const handleWhatsAppCheckout = () => {
-    let phoneNumber = "254710417054"; // Final Fallback line
+    let phoneNumber = "254710417054"; 
 
-    // Resolve phone: Use resolved plugin number if present, otherwise fallback to global default
     if (product.whatsapp_number && product.whatsapp_number.trim().length > 0) {
       phoneNumber = product.whatsapp_number;
     }
 
-    // Sanitize number: remove spaces, +, brackets, or dashes
     phoneNumber = phoneNumber.replace(/[\s\+\-\(\)]/g, '');
 
-    // Resolve custom message: Use resolved plugin message if present, otherwise use standard fallback
-    let message = `Hi, I am interested in ordering: \n\n*Product:* ${product.name}\n*Price:* Ksh ${product.price}\n*Qty:* ${qty}\n\nIs this item available?`;
+    const productUrl = product.slug 
+      ? `https://studentmarket.co.ke/product/${product.slug}/` 
+      : 'https://studentmarket.co.ke/';
+
+    let message = `Hi, I am interested in ordering: \n\n*Product:* ${product.name}\n*Link:* ${productUrl}\n*Price:* Ksh ${product.price}\n*Qty:* ${qty}\n\nIs this item available?`;
+    
     if (product.whatsapp_message && product.whatsapp_message.trim().length > 0) {
       message = product.whatsapp_message;
     }
@@ -152,16 +215,18 @@ export default function ProductDetailsScreen({
       
       {/* Header */}
       <View style={globalStyles.headerRow}>
-        <TouchableOpacity style={globalStyles.iconBtn} onPress={onGoBack}>
+        <TouchableOpacity style={globalStyles.iconBtn} onPress={handleBackAction}>
           <Icon source="chevron-left" size={28} color={C.text} />
         </TouchableOpacity>
 
         <Text style={globalStyles.headerTitle}>Product Details</Text>
 
         <View style={styles.headerActions}>
-          <TouchableOpacity style={globalStyles.iconBtn}>
-            <Icon source="share-variant-outline" size={24} color={C.text} />
-          </TouchableOpacity>
+          <ShareButton 
+            title={product.name}
+            message={`Check out this amazing product: "${product.name}" (Ksh ${product.price})`}
+            url={product.slug ? `https://studentmarket.co.ke/product/${product.slug}/` : `https://studentmarket.co.ke/`} 
+          />
           <CartButton onPress={() => onNavigate("Cart")} />
         </View>
       </View>
@@ -170,13 +235,17 @@ export default function ProductDetailsScreen({
         
         {/* Gallery */}
         <View style={styles.galleryContainer}>
-          <View style={styles.mainImageWrapper}>
+          <TouchableOpacity 
+            style={styles.mainImageWrapper} 
+            activeOpacity={0.9}
+            onPress={() => setIsModalVisible(true)} 
+          >
             {activeImageUri ? (
               <Image source={{ uri: activeImageUri }} style={styles.mainImage} contentFit="contain" />
             ) : (
               <Icon source="image-outline" size={64} color={C.lightGray} />
             )}
-          </View>
+          </TouchableOpacity>
           
           {product.images.length > 1 && (
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.thumbnailScroll}>
@@ -197,7 +266,6 @@ export default function ProductDetailsScreen({
         <View style={styles.section}>
           <Text style={styles.productTitle}>{product.name}</Text>
           
-          {/* Interactive Vendor Store Redirection */}
           {product.store && (
             <Text style={styles.storeText}>
               Vendor:{" "}
@@ -245,7 +313,6 @@ export default function ProductDetailsScreen({
         <View style={[globalStyles.featuredSectionFrame,  { padding: 12, }]}>
           <Text style={styles.sectionTitle}>Additional Information</Text>
           
-          {/* Dynamic Attributes (Clothing Size, Color, etc.) */}
           {product.attributes?.map((attr, index) => (
             <React.Fragment key={index}>
               <View style={styles.tableRow}>
@@ -256,7 +323,6 @@ export default function ProductDetailsScreen({
             </React.Fragment>
           ))}
           
-          {/* Interactive Category Redirect Row */}
           {product.categories.length > 0 && (
             <>
               <View style={styles.tableRow}>
@@ -279,7 +345,6 @@ export default function ProductDetailsScreen({
             </>
           )}
           
-          {/* Interactive Tags Redirect Row */}
           {product.tags.length > 0 && (
             <View style={styles.tableRow}>
               <Text style={styles.tableLabel}>Tags</Text>
@@ -324,27 +389,64 @@ export default function ProductDetailsScreen({
           style={[
             styles.actionBtn, 
             styles.btnCart,
-            isAlreadyInCart && { backgroundColor: C.accent } // <-- Dynamically override color to accent
+            isOutOfStock && { backgroundColor: C.lightGray },
+            isAlreadyInCart && !isOutOfStock && { backgroundColor: C.accent } 
           ]}
           onPress={() => {
+            if (isOutOfStock) return;
+            
             if (isAlreadyInCart) {
               onNavigate("Cart");
             } else {
               onAddToCart(product, qty);
             }
           }}
+          disabled={isOutOfStock}
         >
           <Text style={styles.btnTextWhite}>
-            {isAlreadyInCart ? "View Cart" : "Add To Cart"}
+            {isOutOfStock ? "Out of Stock" : isAlreadyInCart ? "View Cart" : "Add To Cart"}
           </Text>
         </TouchableOpacity>
       </View>
+
+      {/* Full-Screen Dynamic Image Viewer Modal */}
+      <Modal
+        visible={isModalVisible}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setIsModalVisible(false)} 
+      >
+        <View style={styles.modalContainer}>
+          <TouchableOpacity 
+            style={styles.modalCloseBtn} 
+            onPress={() => setIsModalVisible(false)}
+            activeOpacity={0.7}
+          >
+            <Icon source="close" size={24} color={C.white} />
+          </TouchableOpacity>
+
+          {activeImageUri && (
+            <Animated.View 
+              {...panResponder.panHandlers}
+              style={[
+                styles.modalFullScreenImage,
+                { transform: [{ scale: scale }] }
+              ]}
+            >
+              <Image 
+                source={{ uri: activeImageUri }} 
+                style={styles.fullScreenImageFiller} 
+                contentFit="contain" 
+              />
+            </Animated.View>
+          )}
+        </View>
+      </Modal>
 
     </SafeAreaView>
   );
 }
 
-// Keep your styles identical...
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: C.bg },
   centerStage: { flex: 1, justifyContent: 'center', alignItems: 'center' },
@@ -399,7 +501,6 @@ const styles = StyleSheet.create({
   specHeading: { fontSize: 14, color: C.text, fontWeight: '600', marginBottom: 4 },
   bulletText: { fontSize: 14, color: C.subtext, lineHeight: 22 },
 
-  // Spacing helper wrapper to allow commas to wrap naturally
   clickableLinkContainer: {
     flex: 2,
     flexDirection: 'row',
@@ -407,7 +508,7 @@ const styles = StyleSheet.create({
   },
   tableRow: { flexDirection: 'row', paddingVertical: 12 },
   tableLabel: { flex: 1, fontSize: 14, color: C.text, fontWeight: '500' },
-  tableValueGreen: { fontSize: 14, color: C.primary, fontWeight: '500' }, // Removed flex: 2 so links flow inline
+  tableValueGreen: { fontSize: 14, color: C.primary, fontWeight: '500' }, 
   divider: { height: 1, backgroundColor: C.border },
 
   stickyBottomBar: {
@@ -429,7 +530,35 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  btnWhatsapp: { backgroundColor: '#10B981' }, 
-  btnCart: { backgroundColor: '#1C4A3A' }, 
-  btnTextWhite: { color: '#FFFFFF', fontSize: 15, fontWeight: '600' },
+  btnWhatsapp: { backgroundColor: '#25D366' }, 
+  btnCart: { backgroundColor: C.primary }, 
+  btnTextWhite: { color: C.white, fontSize: 15, fontWeight: '600' },
+
+  modalContainer: {
+    flex: 1,
+    backgroundColor: C.black,
+    alignItems: 'center',
+    justifyContent: 'center',
+    position: 'relative',
+  },
+  modalFullScreenImage: {
+    width: '100%',
+    height: '80%',
+  },
+  fullScreenImageFiller: {
+    width: '100%',
+    height: '100%',
+  },
+  modalCloseBtn: {
+    position: 'absolute',
+    top: Platform.OS === 'ios' ? 60 : 40,
+    right: 20,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'rgba(255, 255, 255, 0.25)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 999,
+  },
 });

@@ -16,7 +16,6 @@ import { Image } from 'expo-image';
 import { C, globalStyles } from '../styles/theme';
 import { fetchWooCommerce } from '../services/wooApi';
 import { adaptWooProductToUI } from '../utils/adapters';
-import CartButton from '../components/CartButton';
 import ProductSection from '../components/ProductSection';
 
 interface CartScreenProps {
@@ -39,7 +38,6 @@ export default function CartScreen({
   const [recommendations, setRecommendations] = useState<any[]>([]);
   const [loadingRecs, setLoadingRecs] = useState(true);
 
-  // Coupon States
   const [couponCode, setCouponCode] = useState('');
   const [discountAmount, setDiscountAmount] = useState(0);
   const [applyingCoupon, setApplyingCoupon] = useState(false);
@@ -47,22 +45,35 @@ export default function CartScreen({
   const [couponSuccess, setCouponSuccess] = useState<string | null>(null);
 
   useEffect(() => {
-    fetchWooCommerce('products?per_page=4')
+
+    const cartTagIds = cartItems.flatMap(item => item.tags?.map((t: any) => t.id) || []);
+    const uniqueTagIds = Array.from(new Set(cartTagIds)).slice(0, 3);
+
+    setLoadingRecs(true);
+
+    let endpoint = '';
+    
+    if (uniqueTagIds.length > 0) {
+      endpoint = `products?tag=${uniqueTagIds.join(',')}&per_page=6&random=true&stock_status=instock`;
+    } else {
+      endpoint = `products?orderby=popularity&per_page=4&stock_status=instock`;
+    }
+
+    fetchWooCommerce(endpoint)
       .then((raw) => {
         setRecommendations(raw.map(adaptWooProductToUI));
       })
       .catch((err) => console.error('[Cart Recommendations Error]:', err))
       .finally(() => setLoadingRecs(false));
-  }, []);
+  }, [cartItems]);
 
   const subtotal = cartItems.reduce(
     (sum, item) => sum + Number(item.price) * item.qty,
     0
   );
 
-  // 1. Dynamic WooCommerce REST API Coupon Validator
   const handleApplyCoupon = () => {
-    const cleanedCode = couponCode.trim().toLowerCase(); // WC queries codes in lowercase
+    const cleanedCode = couponCode.trim().toLowerCase();
     if (!cleanedCode) return;
 
     setApplyingCoupon(true);
@@ -94,9 +105,9 @@ export default function CartScreen({
         // Calculate discount dynamically based on WooCommerce rules
         let calculatedDiscount = 0;
         if (discountType === 'percent') {
-          calculatedDiscount = subtotal * (amount / 100); // e.g. 10% off
+          calculatedDiscount = subtotal * (amount / 100);
         } else {
-          calculatedDiscount = Math.min(amount, subtotal); // e.g. flat Ksh discount
+          calculatedDiscount = Math.min(amount, subtotal);
         }
 
         setDiscountAmount(calculatedDiscount);
@@ -207,7 +218,6 @@ export default function CartScreen({
             )}
             </View>
 
-            {/* Recommendations */}
             {loadingRecs ? (
               <ActivityIndicator size="small" color={C.primary} style={{ marginVertical: 24 }} />
             ) : recommendations.length > 0 ? (
@@ -252,12 +262,10 @@ export default function CartScreen({
                       )}
                     </TouchableOpacity>
                 </View>
-
-                {/* 2. Interactive Status Messages below the coupon input */}
+                
                 {couponError && <Text style={styles.couponErrorText}>{couponError}</Text>}
                 {couponSuccess && <Text style={styles.couponSuccessText}>{couponSuccess}</Text>}
 
-                {/* Pricing Ledger Rows */}
                 <View style={styles.summaryLedger}>
                     <View style={styles.ledgerRow}>
                       <Text style={styles.ledgerLabel}>Subtotal</Text>
@@ -332,8 +340,8 @@ const styles = StyleSheet.create({
     },
     storeHitbox: { paddingVertical: 2, },
     storeText: { fontSize: 12, color: C.subtext,},
-    storeName: { color: '#1C4A3A', fontWeight: '600', },
-    priceText: { fontSize: 14, fontWeight: '700', color: '#1C4A3A', marginTop: 4, },
+    storeName: { color: C.secondary, fontWeight: '600', },
+    priceText: { fontSize: 14, fontWeight: '700', color: C.secondary, marginTop: 4, },
     itemsWrapper: { paddingHorizontal: 16, paddingTop: 16, gap: 16 },
     productName: { fontSize: 15, fontWeight: '600', color: C.text },
     variationText: { fontSize: 13, color: C.subtext, marginTop: 2 },
@@ -365,20 +373,19 @@ const styles = StyleSheet.create({
         marginHorizontal: 16,
         paddingHorizontal: 12,
         height: 46,
-        marginBottom: 8, // Slightly smaller margin to leave room for error text
+        marginBottom: 8,
     },
     couponInput: { flex: 1, marginLeft: 8, fontSize: 14, color: C.text },
     
-    // Status text styles
     couponErrorText: {
-      color: '#EF4444', // Red text
+      color: '#EF4444',
       fontSize: 12,
       fontWeight: '600',
       paddingHorizontal: 16,
       marginBottom: 12,
     },
     couponSuccessText: {
-      color: C.accent, // Dynamic theme accent green text
+      color: C.accent,
       fontSize: 12,
       fontWeight: '600',
       paddingHorizontal: 16,

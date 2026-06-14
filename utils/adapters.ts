@@ -1,4 +1,4 @@
-import { decodeHTMLEntities } from './stringUtils'; // Adjust path if needed
+import { decodeHTMLEntities } from './stringUtils';
 
 export const adaptWooProductToUI = (raw: any) => {
   const whatsappMeta = raw.meta_data?.find((m: any) => 
@@ -15,11 +15,15 @@ export const adaptWooProductToUI = (raw: any) => {
   return {
     id:            raw.id,
     name:          decodeHTMLEntities(raw.name),
+    slug:          raw.slug || "",
     price:         raw.price || "0.00",
     regular_price: raw.regular_price || raw.price || "0.00",
     on_sale:       raw.on_sale === true,
     description:   raw.description || raw.short_description || "",
     related_ids:   raw.related_ids || [],
+    
+    cross_sell_ids: raw.cross_sell_ids || [],
+    upsell_ids:     raw.upsell_ids || [],
     
     whatsapp_number:  raw.whatsapp_number_resolved || null,
     whatsapp_message: raw.whatsapp_message_resolved || null,

@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, Text, TextInput, StyleSheet, TouchableOpacity, Linking  } from 'react-native';
 import { Icon } from 'react-native-paper';
 import { C } from '../styles/theme';
 
 interface LoginFormProps {
-  onLogin: (email: string) => void; // Updated callback signature
+  onLogin: (email: string) => void;
 }
 
 export default function LoginForm({ onLogin }: LoginFormProps) {
@@ -58,14 +58,21 @@ export default function LoginForm({ onLogin }: LoginFormProps) {
           <Icon 
             source={rememberMe ? "checkbox-marked" : "checkbox-blank-outline"} 
             size={20} 
-            color={rememberMe ? "#1C4A3A" : C.subtext} 
+            color={rememberMe ? C.secondary : C.subtext} 
           />
           <Text style={styles.rememberText}>Remember me</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity>
+        <TouchableOpacity 
+          activeOpacity={0.7}
+          onPress={() => {
+            const url = 'https://studentmarket.co.ke/my-account/lost-password/';
+            Linking.openURL(url).catch((err) => console.error("[Lost Password Redirect Error]:", err));
+          }}
+        >
           <Text style={styles.forgotText}>Lost your password?</Text>
         </TouchableOpacity>
+        
       </View>
 
       {/* Log In Button (Triggers dynamic callback with email value) */}
@@ -90,13 +97,13 @@ const styles = StyleSheet.create({
     color: C.text,
     paddingVertical: 8,
     borderBottomWidth: 1,
-    borderBottomColor: '#D1D5DB',
+    borderBottomColor: C.borderBottom,
   },
   passwordWrapper: {
     flexDirection: 'row',
     alignItems: 'center',
     borderBottomWidth: 1,
-    borderBottomColor: '#D1D5DB',
+    borderBottomColor: C.borderBottom,
     paddingBottom: 8,
   },
   passwordInput: { flex: 1, fontSize: 14, color: C.text, paddingVertical: 0 },
@@ -116,5 +123,5 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  submitBtnText: { color: '#FFFFFF', fontSize: 16, fontWeight: '600' },
+  submitBtnText: { color: C.white, fontSize: 16, fontWeight: '600' },
 });

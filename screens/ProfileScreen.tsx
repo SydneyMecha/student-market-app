@@ -1,29 +1,101 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { 
   View, 
   Text, 
   StyleSheet, 
   ScrollView, 
-  TouchableOpacity, 
+  TouchableOpacity,
+  ActivityIndicator,
+  Linking
 } from "react-native";
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Icon } from 'react-native-paper';
 import { C, globalStyles } from '../styles/theme';
 import CartButton from '../components/CartButton';
+import { fetchWooCommerce } from '../services/wooApi';
 
 interface ProfileScreenProps {
-  currentUser: any; // Mapped logged-in customer object passed from App.js
+  currentUser: any;
   onNavigate: (screenName: string, params?: any) => void;
-  onLogout: () => void; // Added logout callback
+  onLogout: () => void;
+  onProfileUpdate: (updatedUser: any) => void;
 }
 
-export default function ProfileScreen({ currentUser, onNavigate, onLogout }: ProfileScreenProps) {
-  const userProfile = {
-    username: currentUser?.username || "NaN",
+const mapCustomerToUser = (customer: any) => ({
+  id: customer.id,
+  username: customer.username,
+  display_name: customer.display_name || customer.username,
+  email: customer.email,
+  fullName: `${customer.first_name || ''} ${customer.last_name || ''}`.trim()
+    || customer.display_name
+    || customer.username,
+  autologin_url: customer.edit_account_autologin_url,
+  migration_autologin_url: customer.migration_autologin_url, // Mapped new token URL
+  billing: {
+    first_name: customer.billing?.first_name,
+    city: customer.billing?.city,
+    phone: customer.billing?.phone,
+    email: customer.billing?.email,
+  },
+  shipping: {
+    first_name: customer.shipping?.first_name,
+    city: customer.shipping?.city,
+    phone: customer.shipping?.phone,
+  },
+});
+
+export default function ProfileScreen({ 
+  currentUser, 
+  onNavigate, 
+  onLogout,
+  onProfileUpdate,
+}: ProfileScreenProps) {
+  const [refreshing, setRefreshing] = useState(false);
+  const [orderCount, setOrderCount] = useState(0);
+
+  useEffect(() => {
+    if (!currentUser?.id) return;
+
+    // Queries up to 100 of this user's orders securely using your API keys
+    fetchWooCommerce(`orders?customer=${currentUser.id}&per_page=100`)
+      .then((raw: any[]) => {
+        if (raw && Array.isArray(raw)) {
+          // Count the returned orders array length natively
+          setOrderCount(raw.length);
+        }
+      })
+      .catch((err) => {
+        console.error('[ProfileScreen] Order count fetch failed:', err);
+      });
+  }, [currentUser?.id]);
+
+  useEffect(() => {
+    if (!currentUser?.id) return;
+    const userId = currentUser?.id;
+    if (!userId) return;
+    let cancelled = false;
+    setRefreshing(true);
+    fetchWooCommerce(`customers/${userId}`)
+      .then((customer) => {
+        if (!cancelled) {
+          onProfileUpdate(mapCustomerToUser(customer));
+        }
+      })
+      .catch((err) => {
+        console.error('[ProfileScreen] Failed to refresh profile:', err);
+      })
+      .finally(() => {
+        if (!cancelled) setRefreshing(false);
+      });
+    return () => { cancelled = true; };
+  }, []);
+
+   const userProfile = {
+    displayName: currentUser?.display_name || currentUser?.username || "NaN",
     email: currentUser?.email || "NaN",
     fullName: currentUser?.fullName || "NaN",
-    orderCount: 0,
-    location: currentUser?.billing?.city || "NaN" // Safeguards missing fields as "NaN"
+    orderCount: orderCount,
+    location: currentUser?.billing?.city || currentUser?.shipping?.city || "NaN",
   };
 
   const menuOptions = [
@@ -37,7 +109,7 @@ export default function ProfileScreen({ currentUser, onNavigate, onLogout }: Pro
     {
       id: 'orders',
       title: 'Orders',
-      subtitle: `You have ${userProfile.orderCount} orders`,
+      subtitle: `You have ${userProfile.orderCount} order(s)`, 
       icon: 'basket-outline',
       target: 'OrdersList'
     },
@@ -57,36 +129,37 @@ export default function ProfileScreen({ currentUser, onNavigate, onLogout }: Pro
     }
   ];
 
-  return (
+    return (
     <View style={styles.mainContainer}>
-      
-        <View style={styles.heroHeader}>
-            <SafeAreaView>
-                
-            <View style={[globalStyles.headerRow, {backgroundColor: 'transparent'}]}>
-                <TouchableOpacity 
-                style={styles.backButton} 
-                onPress={() => onNavigate('Home')}
-                activeOpacity={0.7}
-                >
-                  <Icon source="chevron-left" size={24} color={C.white} />
-                </TouchableOpacity>
-                <Text style={styles.headerTitle}>Profile</Text>
-                <CartButton onPress={() => onNavigate('Cart')} />
+      <View style={styles.heroHeader}>
+        <SafeAreaView>
+          <View style={[globalStyles.headerRow, { backgroundColor: 'transparent' }]}>
+            <TouchableOpacity 
+              style={styles.backButton} 
+              onPress={() => onNavigate('Home')}
+              activeOpacity={0.7}
+            >
+              <Icon source="chevron-left" size={24} color={C.white} />
+            </TouchableOpacity>
+            <Text style={styles.headerTitle}>Profile</Text>
+            <View style={styles.headerRight}>
+              {refreshing && (
+                <ActivityIndicator size="small" color={C.white} style={{ marginRight: 8 }} />
+              )}
+              <CartButton onPress={() => onNavigate('Cart')} />
             </View>
-
-            {/* Dynamic User Profile Avatar Frame */}
-            <View style={styles.userMetaBlock}>
-                <View style={styles.avatarContainer}>
-                  <Icon source="account-outline" size={64} color={C.white} />
-                </View>
-                <Text style={styles.usernameText}>{userProfile.username}</Text>
-                <Text style={styles.emailText}>{userProfile.email}</Text>
+          </View>
+          <View style={styles.userMetaBlock}>
+            <View style={styles.avatarContainer}>
+              <Icon source="account-outline" size={64} color={C.white} />
             </View>
-            </SafeAreaView>
-        </View>
+            <Text style={styles.usernameText}>{userProfile.displayName}</Text>
+            <Text style={styles.emailText}>{userProfile.email}</Text>
+          </View>
+        </SafeAreaView>
+      </View>
 
-        <ScrollView 
+         <ScrollView 
             showsVerticalScrollIndicator={false} 
             contentContainerStyle={styles.scrollContent}
         >
@@ -100,6 +173,13 @@ export default function ProfileScreen({ currentUser, onNavigate, onLogout }: Pro
                     onNavigate("EditProfile", { mode: 'address' });
                   } else if (option.id === 'edit_profile') {
                     onNavigate("EditProfile", { mode: 'personal' });
+                  } else if (option.id === 'become_vendor') {
+                    const url = currentUser?.migration_autologin_url || "https://studentmarket.co.ke/my-account/account-migration/";
+                    Linking.openURL(url).catch((err) => console.error("Error opening autologin link:", err));
+                  } 
+                  // Connected dynamic "Orders" list router trigger on tap
+                  else if (option.id === 'orders') {
+                    onNavigate("OrdersList"); 
                   } else {
                     onNavigate(option.target);
                   }
@@ -120,7 +200,6 @@ export default function ProfileScreen({ currentUser, onNavigate, onLogout }: Pro
             ))}
             </View>
 
-            {/* 2. Connected log-out session helper */}
             <TouchableOpacity 
               style={styles.logoutButton}
               onPress={onLogout}
@@ -136,8 +215,11 @@ export default function ProfileScreen({ currentUser, onNavigate, onLogout }: Pro
 
 const styles = StyleSheet.create({
   mainContainer: { flex: 1, backgroundColor: C.bg },
-  
-  /* Hero Section Elements */
+
+  headerRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
   heroHeader: {
     backgroundColor: C.primary,
     borderBottomLeftRadius: 32,
@@ -189,8 +271,6 @@ const styles = StyleSheet.create({
     color: C.lightGray,
     fontWeight: '400',
   },
-
-  /* Menu Layout Options */
   scrollContent: {
     paddingTop: 24,
     paddingHorizontal: 16,
@@ -203,7 +283,7 @@ const styles = StyleSheet.create({
   menuCell: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#FFFFFF',
+    backgroundColor: C.white,
     borderRadius: 16,
     padding: 14,
     shadowColor: '#000',
@@ -234,8 +314,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: C.subtext,
   },
-
-  /* Action Buttons */
   logoutButton: {
     borderColor: '#124632',
     borderWidth: 1.2,
@@ -244,7 +322,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     marginTop: 8,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: C.white,
   },
   logoutText: {
     color: '#124632',

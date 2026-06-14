@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react'; // 1. Imported useEffect
+import React, { useEffect } from 'react';
 import {
   View,
   Text,

@@ -17,7 +17,7 @@ export default function ProductGrid({
   products,
   showViewMore = true,
   onPressProduct,
-  onViewMore, // Destructure prop
+  onViewMore,
 }: ProductGridProps) { 
   return (
     <View style={styles.container}>
@@ -37,7 +37,7 @@ export default function ProductGrid({
         <TouchableOpacity 
           style={styles.viewMoreBtn} 
           activeOpacity={0.7} 
-          onPress={onViewMore} // 2. Attached action trigger
+          onPress={onViewMore}
         >
           <Text style={styles.viewMoreText}>View More</Text>
         </TouchableOpacity>
@@ -46,7 +46,6 @@ export default function ProductGrid({
   );
 }
 
-// Keep your existing styles unchanged...
 const styles = StyleSheet.create({
   container: {
     marginVertical: 24,

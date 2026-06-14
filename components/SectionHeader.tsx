@@ -2,11 +2,10 @@ import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { C } from '../styles/theme';
 
-// 1. Update the interface to accept the visibility boolean
 interface SectionHeaderProps {
   title: string;
   onViewMore: () => void;
-  showViewMore?: boolean; // Made optional using '?'
+  showViewMore?: boolean;
 }
 
 export default function SectionHeader({ title, onViewMore, showViewMore = true }: SectionHeaderProps) {
@@ -14,7 +13,6 @@ export default function SectionHeader({ title, onViewMore, showViewMore = true }
     <View style={styles.headerRow}>
       <Text style={styles.titleText}>{title}</Text>
       
-      {/* 2. THE FIX: Only render this button if showViewMore evaluates to true! */}
       {showViewMore && (
         <TouchableOpacity onPress={onViewMore} activeOpacity={0.7}>
           <Text style={styles.viewMoreText}>View More</Text>

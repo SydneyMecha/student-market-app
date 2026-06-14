@@ -11,7 +11,7 @@ interface WooCommerceTag {
 }
 
 interface TagCloudsProps {
-  onPressTag: (id: number, name: string) => void; // Updated callback prop
+  onPressTag: (id: number, name: string) => void;
 }
 
 export default function TagClouds({ onPressTag }: TagCloudsProps) {
@@ -64,7 +64,7 @@ export default function TagClouds({ onPressTag }: TagCloudsProps) {
         return (
           <TouchableOpacity
             key={tag.id} 
-            onPress={() => onPressTag(tag.id, tag.name)} // Passes back ID and Name
+            onPress={() => onPressTag(tag.id, tag.name)}
             style={globalStyles.tagChip}
             activeOpacity={0.8}
           >

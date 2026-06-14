@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { View, StyleSheet, TouchableOpacity, TextInput } from 'react-native';
 import { Icon, Menu } from 'react-native-paper';
-import { C } from '../styles/theme'; // Adjust path if needed
+import { C } from '../styles/theme';
 
 interface SearchFilterRowProps {
   searchQuery: string;
@@ -21,7 +21,6 @@ export default function SearchFilterRow({
   return (
     <View style={styles.searchRow}>
       
-      {/* Menu Wrapper for Filter Button */}
       {onSelectSort && (
         <Menu
           visible={menuVisible}
@@ -36,7 +35,6 @@ export default function SearchFilterRow({
             </TouchableOpacity>
           }
         >
-          {/* Updated menu items to support all 5 product sorting metrics */}
           <Menu.Item 
             onPress={() => {
               onSelectSort('popularity', 'Sort by popularity');
@@ -74,8 +72,7 @@ export default function SearchFilterRow({
           />
         </Menu>
       )}
-      
-      {/* Integrated Working Search Input Box */}
+
       <View style={styles.searchBarContainer}>
         <View style={styles.searchBarInputRow}>
           <Icon source="magnify" size={20} color={C.subtext} />

@@ -1,9 +1,7 @@
 import React from 'react';
 import { View } from 'react-native';
-import { WooProduct } from '../types';
 import { globalStyles } from '../styles/theme';
 import SectionHeader from './SectionHeader';
-import ProductGrid from './ProductGrid';
 import { FlatList } from 'react-native';
 import ProductCard from './ProductCard';
 

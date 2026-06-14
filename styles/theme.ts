@@ -21,6 +21,8 @@ export const C = {
   badge: "#EDAA2E",
   iconBg: "#F8F9FA",
   textBox: "#F8F9FB",
+  borderBottom: '#D1D5DB',
+  lightBlue: '#E2E8F0',
 };
 
 export const globalStyles = StyleSheet.create({
@@ -29,7 +31,7 @@ export const globalStyles = StyleSheet.create({
     backgroundColor: C.bg,
   },
   mainContentWindow: {
-    flex: 1, // Forces the screen content window to fill all available space above the navbar
+    flex: 1,
   },
 
   safe: { flex: 1, backgroundColor: C.surface },
@@ -61,11 +63,17 @@ export const globalStyles = StyleSheet.create({
 
   // Category Wrapper
   featuredSectionFrame: {
-    backgroundColor: C.white,
-    borderRadius: 24,
     marginHorizontal: 12,
     paddingVertical: 16,
-    marginBottom: 12,
+    marginBottom: 16,
+    backgroundColor: C.white,
+    borderRadius: 24,
+    padding: 8,
+    shadowColor: C.black,
+    shadowOffset: { width: 1, height: 1 },
+    shadowOpacity: 0.02,
+    shadowRadius: 4,
+    elevation: 1,
   },
 
   // Popular tags
@@ -73,7 +81,7 @@ export const globalStyles = StyleSheet.create({
     marginVertical: 12,
   },
   horizontalScrollContent: {
-    paddingHorizontal: 16, // Matches your screen margins
+    paddingHorizontal: 16,
     flexDirection: 'row',
     alignItems: 'center',
   },

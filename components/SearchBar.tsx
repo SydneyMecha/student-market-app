@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, TextInput, StyleSheet, ActivityIndicator } from 'react-native';
 import { Icon } from 'react-native-paper';
-import { C } from '../styles/theme'; // Adjust path as needed
+import { C } from '../styles/theme';
 
 interface SearchBarProps {
   placeholderText: string;
@@ -22,7 +22,7 @@ export default function SearchBar({ placeholderText, value, onChangeText, loadin
         style={styles.textInput}
         value={value}
         onChangeText={onChangeText}
-        onFocus={onFocus} // 2. Connected focus listener
+        onFocus={onFocus}
       />
       {loading && <ActivityIndicator size="small" color={C.primary} style={{ marginLeft: 8 }} />}
     </View>

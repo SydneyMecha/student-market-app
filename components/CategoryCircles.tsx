@@ -26,7 +26,7 @@ const getIconForCategory = (slug: string): string => {
     case 'home-products':     return 'home-outline';
     case 'services':          return 'room-service-outline';
     case 'fashion-accessories': return 'cellphone';
-    default:                  return 'tag-outline'; // Generic fallback tag icon
+    default:                  return 'tag-outline';
   }
 };
 
@@ -40,7 +40,7 @@ export default function CategoryCircles({ onPressCategory }: CategoryCirclesProp
       .then((raw: any[]) => {
         const formatted = raw.map((c) => ({
           id: c.id,
-          name: decodeHTMLEntities(c.name), // Decodes special HTML characters
+          name: decodeHTMLEntities(c.name),
           slug: c.slug,
           image: c.image ? { src: c.image.src } : null,
         }));
@@ -76,18 +76,16 @@ export default function CategoryCircles({ onPressCategory }: CategoryCirclesProp
             key={cat.id} 
             style={styles.categoryItem} 
             activeOpacity={0.8}
-            onPress={() => onPressCategory(cat.id, cat.name)} // Triggers dynamic navigation
+            onPress={() => onPressCategory(cat.id, cat.name)}
           >
             <View style={[styles.categoryCircle, { backgroundColor: C.primary }]}>
               {hasImage ? (
-                // 1. If category image exists, render it beautifully inside the circle
                 <Image 
                   source={{ uri: cat.image!.src }} 
                   style={styles.categoryCircleImage} 
                   contentFit="cover"
                 />
               ) : (
-                // 2. Fallback to vector icon if no image is uploaded
                 <Icon source={getIconForCategory(cat.slug)} size={28} color={C.surface} />
               )}
             </View>
@@ -119,7 +117,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     marginBottom: 8,
-    overflow: 'hidden', // Ensures images stay strictly circular
+    overflow: 'hidden',
   },
   categoryCircleImage: {
     width: '100%',

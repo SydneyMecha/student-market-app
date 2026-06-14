@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -26,13 +26,14 @@ interface CheckoutParams {
 
 interface CheckoutScreenProps {
   routeParams: CheckoutParams; 
-  currentUser: any; // Mapped logged-in customer object passed from App.js
+  currentUser: any; 
   onNavigate: (screenName: string, params?: any) => void;
-  onLoginSuccess?: (user: any) => void; // Parent state updater
+  onLoginSuccess?: (user: any) => void; 
   onGoBack: () => void;
+  onClearCart?: () => void;
 }
 
-export default function CheckoutScreen({ routeParams, currentUser, onNavigate, onLoginSuccess, onGoBack }: CheckoutScreenProps) {
+export default function CheckoutScreen({ routeParams, currentUser, onNavigate, onLoginSuccess, onGoBack, onClearCart  }: CheckoutScreenProps) {
   const [paymentMethod, setPaymentMethod] = useState<'mpesa' | 'cod'>('cod');
   const [confirming, setConfirming] = useState(false);
   const [createAccount, setCreateAccount] = useState(false); // Controls guest auto-registration
@@ -43,29 +44,42 @@ export default function CheckoutScreen({ routeParams, currentUser, onNavigate, o
   const shipping = 0; 
   const total = routeParams?.total || 0;
 
+  const hasSavedAddress = currentUser && 
+    currentUser.billing?.first_name && 
+    currentUser.billing?.first_name !== "NaN" &&
+    currentUser.billing?.city && 
+    currentUser.billing?.city !== "NaN";
+
   // Form states (Pre-filled automatically if currentUser session is active)
   const [firstName, setFirstName] = useState(currentUser?.billing?.first_name || currentUser?.fullName?.split(' ')[0] || '');
   const [email, setEmail] = useState(currentUser?.email || '');
   const [townCity, setTownCity] = useState(currentUser?.billing?.city || '');
   const [phone, setPhone] = useState(currentUser?.billing?.phone || '');
 
-  // 1. Centralized Order Poster (Associates the order with a Customer ID if provided)
+  // Centralized Order Poster (Associates the order with a Customer ID if provided)
   const submitOrderToWooCommerce = (customerId = 0) => {
+    const finalBilling = hasSavedAddress ? {
+      first_name: currentUser.fullName?.split(' ')[0] || currentUser.username,
+      email: currentUser.email,
+      city: currentUser.billing?.city || currentUser.shipping?.city,
+      phone: currentUser.billing?.phone || "",
+    } : {
+      first_name: firstName,
+      email: email,
+      city: townCity,
+      phone: phone,
+    };
+
     const orderData = {
       payment_method: paymentMethod,
       payment_method_title: paymentMethod === 'cod' ? 'Cash on Delivery' : 'M-Pesa Mobile Money',
       status: "processing", 
       set_paid: false,       
-      customer_id: customerId, // Associates order with the Customer account ID
-      billing: {
-        first_name: firstName,
-        email: email,
-        city: townCity,
-        phone: phone,
-      },
+      customer_id: customerId, 
+      billing: finalBilling,
       shipping: {
-        first_name: firstName,
-        city: townCity,
+        first_name: finalBilling.first_name,
+        city: finalBilling.city,
       },
       line_items: routeParams.cartItems.map(item => ({
         product_id: item.id,
@@ -81,7 +95,10 @@ export default function CheckoutScreen({ routeParams, currentUser, onNavigate, o
       }
     })
     .then((res) => {
-      onNavigate('OrderConfirmation', res);
+      if (onClearCart) {
+        onClearCart();
+      }
+      onNavigate('OrderConfirmation', res); 
     })
     .catch((err) => {
       console.error('[WooCommerce Order Create Error]:', err);
@@ -90,11 +107,14 @@ export default function CheckoutScreen({ routeParams, currentUser, onNavigate, o
     .finally(() => setConfirming(false));
   };
 
-  // 2. Click handler managing the dynamic order creation + registration pipeline
+  // Click handler managing the dynamic order creation + registration + address saving pipeline
   const handleConfirmOrder = () => {
-    if (!firstName.trim() || !email.trim() || !townCity.trim() || !phone.trim()) {
-      Alert.alert("Missing Details", "Please fill in all shipping address fields before confirming.");
-      return;
+    // Standard validation only if we are using the form inputs (not using a saved address)
+    if (!hasSavedAddress) {
+      if (!firstName.trim() || !email.trim() || !townCity.trim() || !phone.trim()) {
+        Alert.alert("Missing Details", "Please fill in all shipping address fields before confirming.");
+        return;
+      }
     }
 
     if (!routeParams?.cartItems || routeParams.cartItems.length === 0) {
@@ -104,7 +124,11 @@ export default function CheckoutScreen({ routeParams, currentUser, onNavigate, o
 
     setConfirming(true);
 
-    // If "Create account" is checked and the user is NOT logged in, register them first!
+    const executeOrderPlacement = (customerId: number) => {
+      submitOrderToWooCommerce(customerId);
+    };
+
+    // PIPELINE 1: If "Create account" is checked and the user is NOT logged in, register them first!
     if (createAccount && !currentUser) {
       const generatedUsername = email.split('@')[0] + Math.floor(100 + Math.random() * 900);
       
@@ -112,18 +136,26 @@ export default function CheckoutScreen({ routeParams, currentUser, onNavigate, o
         email: email.trim().toLowerCase(),
         username: generatedUsername,
         first_name: firstName,
+        billing: {
+          first_name: firstName,
+          city: townCity,
+          phone: phone,
+          email: email.trim().toLowerCase(),
+        },
+        shipping: {
+          first_name: firstName,
+          city: townCity,
+          phone: phone,
+        }
       };
 
-      // Create WooCommerce customer profile first
       fetchWooCommerce('customers', {
         method: 'POST',
         body: JSON.stringify(customerPayload),
-        headers: {
-          'Content-Type': 'application/json'
-        }
+        headers: { 'Content-Type': 'application/json' }
       })
       .then((newCustomer) => {
-        // Log them in on the client side automatically!
+        // Log them in on the client side automatically
         if (onLoginSuccess) {
           onLoginSuccess({
             id: newCustomer.id,
@@ -143,18 +175,66 @@ export default function CheckoutScreen({ routeParams, currentUser, onNavigate, o
             }
           });
         }
-
-        // Place order associated with their brand-new WooCommerce Customer ID!
-        submitOrderToWooCommerce(newCustomer.id);
+        executeOrderPlacement(newCustomer.id);
       })
       .catch((err) => {
         console.error('[WooCommerce Auto-Register Error]:', err);
-        // Fallback: If registration fails (e.g. email exists), place order as guest
-        submitOrderToWooCommerce(0);
+        // Fallback: If registration fails, place order as guest
+        executeOrderPlacement(0);
       });
-    } else {
-      // Standard flow (already logged in, or placing guest order without registering)
-      submitOrderToWooCommerce(currentUser?.id || 0);
+    } 
+    // PIPELINE 2: If logged in, but their address fields were previously empty -> Save them now!
+    else if (currentUser && !hasSavedAddress) {
+      const addressPayload = {
+        shipping: {
+          first_name: firstName,
+          city: townCity,
+          phone: phone,
+        },
+        billing: {
+          first_name: firstName,
+          city: townCity,
+          phone: phone,
+          email: email,
+        }
+      };
+
+      fetchWooCommerce(`customers/${currentUser.id}`, {
+        method: 'PUT',
+        body: JSON.stringify(addressPayload),
+        headers: { 'Content-Type': 'application/json' }
+      })
+      .then((updatedCustomer) => {
+        // Refresh our global session state with the newly saved addresses
+        if (onLoginSuccess) {
+          onLoginSuccess({
+            id: updatedCustomer.id,
+            username: updatedCustomer.display_name || updatedCustomer.username || "NaN",
+            email: updatedCustomer.email || "NaN",
+            fullName: `${updatedCustomer.first_name || ''} ${updatedCustomer.last_name || ''}`.trim() || "NaN",
+            billing: {
+              first_name: updatedCustomer.billing?.first_name || "NaN",
+              city: updatedCustomer.billing?.city || "NaN",
+              phone: updatedCustomer.billing?.phone || "NaN",
+              email: updatedCustomer.billing?.email || "NaN",
+            },
+            shipping: {
+              first_name: updatedCustomer.shipping?.first_name || "NaN",
+              city: updatedCustomer.shipping?.city || "NaN",
+              phone: updatedCustomer.shipping?.phone || "NaN",
+            }
+          });
+        }
+        executeOrderPlacement(updatedCustomer.id);
+      })
+      .catch((err) => {
+        console.error('[WooCommerce Save Address On Checkout Error]:', err);
+        executeOrderPlacement(currentUser.id); // Proceed even if metadata update failed
+      });
+    } 
+    // PIPELINE 3: Standard flow (already logged in with address, or guest checkout)
+    else {
+      executeOrderPlacement(currentUser?.id || 0);
     }
   };
 
@@ -182,60 +262,79 @@ export default function CheckoutScreen({ routeParams, currentUser, onNavigate, o
           <View style={[globalStyles.featuredSectionFrame, { padding: 16, marginBottom: 16 }]}>
             <Text style={styles.sectionHeading}>Shipping Address</Text>
             
-            {/* Form Fields */}
-            <View style={styles.formGrid}>
-              <View style={styles.formRow}>
-                <View style={styles.inputGroup}>
-                  <Text style={styles.inputLabel}>First Name</Text>
-                  <TextInput 
-                    style={styles.textInput}
-                    placeholder="John"
-                    placeholderTextColor={C.subtext}
-                    value={firstName}
-                    onChangeText={setFirstName}
-                  />
+            {hasSavedAddress ? (
+              // ─── CASE A: If logged in with address, render the static Address Card ───
+              <View style={styles.addressSelector}>
+                <View style={styles.addressIconBox}>
+                  <Icon source="truck-outline" size={24} color="#759388" />
                 </View>
-                <View style={styles.inputGroup}>
-                  <Text style={styles.inputLabel}>Email</Text>
-                  <TextInput 
-                    style={styles.textInput}
-                    placeholder="johndoe@gmail.com"
-                    placeholderTextColor={C.subtext}
-                    keyboardType="email-address"
-                    autoCapitalize="none"
-                    value={email}
-                    onChangeText={setEmail}
-                    editable={!currentUser} // Lock email field if already logged in
-                  />
+                <View style={styles.addressTextContent}>
+                  <Text style={styles.addressTitle}>{currentUser.fullName}</Text>
+                  <Text style={styles.addressSubtitle}>
+                    {currentUser.billing?.city || currentUser.shipping?.city}
+                  </Text>
+                </View>
+                {/* Chevron redirects straight to EditProfile's address section if clicked */}
+                <TouchableOpacity onPress={() => onNavigate("EditProfile", { mode: 'address' })} style={{ padding: 4 }}>
+                  <Icon source="chevron-right" size={24} color={C.primary} />
+                </TouchableOpacity>
+              </View>
+            ) : (
+              // ─── CASE B: If not logged in (or address is empty), render the Form Fields ───
+              <View style={styles.formGrid}>
+                <View style={styles.formRow}>
+                  <View style={styles.inputGroup}>
+                    <Text style={styles.inputLabel}>First Name</Text>
+                    <TextInput 
+                      style={styles.textInput}
+                      placeholder="John"
+                      placeholderTextColor={C.subtext}
+                      value={firstName}
+                      onChangeText={setFirstName}
+                    />
+                  </View>
+                  <View style={styles.inputGroup}>
+                    <Text style={styles.inputLabel}>Email</Text>
+                    <TextInput 
+                      style={styles.textInput}
+                      placeholder="johndoe@gmail.com"
+                      placeholderTextColor={C.subtext}
+                      keyboardType="email-address"
+                      autoCapitalize="none"
+                      value={email}
+                      onChangeText={setEmail}
+                      editable={!currentUser} // Lock email input field if logged in
+                    />
+                  </View>
+                </View>
+
+                <View style={styles.formRow}>
+                  <View style={styles.inputGroup}>
+                    <Text style={styles.inputLabel}>Town/City</Text>
+                    <TextInput 
+                      style={styles.textInput}
+                      placeholder="Athi river"
+                      placeholderTextColor={C.subtext}
+                      value={townCity}
+                      onChangeText={setTownCity}
+                    />
+                  </View>
+                  <View style={styles.inputGroup}>
+                    <Text style={styles.inputLabel}>Phone</Text>
+                    <TextInput 
+                      style={styles.textInput}
+                      placeholder="+254 712 345 678"
+                      placeholderTextColor={C.subtext}
+                      keyboardType="phone-pad"
+                      value={phone}
+                      onChangeText={setPhone}
+                    />
+                  </View>
                 </View>
               </View>
+            )}
 
-              <View style={styles.formRow}>
-                <View style={styles.inputGroup}>
-                  <Text style={styles.inputLabel}>Town/City</Text>
-                  <TextInput 
-                    style={styles.textInput}
-                    placeholder="Athi river"
-                    placeholderTextColor={C.subtext}
-                    value={townCity}
-                    onChangeText={setTownCity}
-                  />
-                </View>
-                <View style={styles.inputGroup}>
-                  <Text style={styles.inputLabel}>Phone</Text>
-                  <TextInput 
-                    style={styles.textInput}
-                    placeholder="+254 712 345 678"
-                    placeholderTextColor={C.subtext}
-                    keyboardType="phone-pad"
-                    value={phone}
-                    onChangeText={setPhone}
-                  />
-                </View>
-              </View>
-            </View>
-
-            {/* 3. Conditional Auto-Registration Checkbox (Only shown if guest user) */}
+            {/* Conditional Auto-Registration Checkbox (Only shown if guest user) */}
             {!currentUser && (
               <TouchableOpacity 
                 style={styles.checkboxRow} 
@@ -320,7 +419,7 @@ export default function CheckoutScreen({ routeParams, currentUser, onNavigate, o
               disabled={confirming}
             >
               {confirming ? (
-                <ActivityIndicator size="small" color={C.white} />
+                <ActivityIndicator size="small" color={C.secondary} />
               ) : (
                 <Text style={styles.checkoutBtnText}>Confirm Order</Text>
               )}
@@ -340,6 +439,30 @@ const styles = StyleSheet.create({
         color: C.text,
         marginBottom: 12,
     },
+    
+    // Address selector layout styling
+    addressSelector: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: '#F3F4F6', // Light gray background
+        padding: 12,
+        borderRadius: 12,
+        borderWidth: 1,
+        borderColor: C.border,
+    },
+    addressIconBox: {
+        width: 40, height: 40,
+        borderRadius: 8,
+        backgroundColor: C.white,
+        alignItems: 'center',
+        justifyContent: 'center',
+        borderWidth: 1,
+        borderColor: C.border,
+    },
+    addressTextContent: { flex: 1, marginLeft: 12 },
+    addressTitle: { fontSize: 14, fontWeight: '700', color: C.text },
+    addressSubtitle: { fontSize: 12, color: C.subtext, marginTop: 2, fontWeight: '500' },
+
     formGrid: { gap: 20 },
     formRow: { flexDirection: 'row', gap: 16 },
     inputGroup: { flex: 1 },
@@ -351,8 +474,6 @@ const styles = StyleSheet.create({
         borderBottomWidth: 0.5,
         borderColor: C.subtext,
     },
-    
-    // Auto-registration checkbox styling
     checkboxRow: {
       flexDirection: 'row',
       alignItems: 'center',
@@ -367,7 +488,6 @@ const styles = StyleSheet.create({
       color: C.text,
       fontWeight: '500',
     },
-
     paymentOption: {
         flexDirection: 'row',
         alignItems: 'center',

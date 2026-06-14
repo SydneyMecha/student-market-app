@@ -12,7 +12,6 @@ interface DynamicProductSectionProps  {
   onPressCategory: (archiveParam: any) => void;
 }
 
-// Added 'onPressProduct' to the destructured argument parameters
 export default function DynamicProductSection({ 
   type, 
   title, 
@@ -28,15 +27,15 @@ export default function DynamicProductSection({
     const cacheBuster = `cb=${Date.now()}`;
     switch (type) {
       case "product-category": 
-        return `products?category=${id}&per_page=10`;
+        return `products?category=${id}&per_page=10&stock_status=instock`; // Appended instock filter
       case "product-tag":      
-        return `products?tag=${id}&per_page=10`;
+        return `products?tag=${id}&per_page=10&stock_status=instock`;      // Appended instock filter
       case "on_sale":  
-        return `products?on_sale=true&per_page=12&random=true&${cacheBuster}`;
+        return `products?on_sale=true&per_page=12&random=true&stock_status=instock&${cacheBuster}`;
       case "featured": 
-        return `products?featured=true&per_page=12&random=true&${cacheBuster}`;
+        return `products?featured=true&per_page=12&random=true&stock_status=instock&${cacheBuster}`;
       default:         
-        return `products?per_page=10`;
+        return `products?per_page=10&stock_status=instock`;
     }
   };
 
@@ -95,10 +94,8 @@ function buildEndpoint(type: string, id: number | null | undefined): string {
     case "product-tag":      
       return `products?tag=${id}&per_page=10`;
     case "on_sale":  
-      // return `products?on_sale=true&per_page=10`;
       return `products?on_sale=true&per_page=12&random=true`;
     case "featured": 
-      // return `products?featured=true&per_page=10`;
       return `products?featured=true&per_page=12&random=true`;
     default:         
       return `products?per_page=10`;

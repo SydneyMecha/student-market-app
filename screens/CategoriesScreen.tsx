@@ -18,7 +18,6 @@ import CartButton from '../components/CartButton';
 import SearchBar from '../components/SearchBar';
 import DynamicProductSection from '../components/DynamicProductSection';
 
-// Category schema interface
 interface WooCommerceCategory {
   id: number;
   name: string;
@@ -43,7 +42,7 @@ export default function CategoriesScreen({ onNavigate }: CategoriesScreenProps) 
   const [searchLoading, setSearchLoading] = useState(false);
   const [searchActive, setSearchActive] = useState(false);
 
-  // 1. Fetch Categories on mount
+  // Fetch Categories on mount
   useEffect(() => {
     fetchWooCommerce('products/categories?per_page=100&hide_empty=true')
       .then((raw: any[]) => {
@@ -66,7 +65,7 @@ export default function CategoriesScreen({ onNavigate }: CategoriesScreenProps) 
       .finally(() => setLoading(false));
   }, []);
 
-  // 2. Debounced Search suggest fetcher (Matching HomeScreen logic)
+  // Debounced Search suggest fetcher (Matching HomeScreen logic)
   useEffect(() => {
     if (!searchQuery.trim()) {
       setSearchResults([]);
@@ -303,8 +302,6 @@ const styles = StyleSheet.create({
     mainContentScroll: {
       paddingBottom: 40,
     },
-
-    /* Search Dropdown & Backdrop Layout Styles */
     stickyHeaderWrapper: {
       zIndex: 9999, 
       position: 'relative',
@@ -321,13 +318,13 @@ const styles = StyleSheet.create({
     },
     dropdownCard: {
       position: 'absolute',
-      top: 110, // Sits exactly below the header
+      top: 110,
       left: 16,
       right: 16,
       backgroundColor: C.white,
       borderRadius: 20,
       padding: 16,
-      shadowColor: '#000',
+      shadowColor: C.black,
       shadowOffset: { width: 0, height: 4 },
       shadowOpacity: 0.15,
       shadowRadius: 12,
@@ -377,7 +374,7 @@ const styles = StyleSheet.create({
     productName: {
       flex: 1,
       fontSize: 14,
-      color: '#3B82F6', 
+      color: C.primary, 
       fontWeight: '600',
     },
     priceContainer: {

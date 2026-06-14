@@ -18,7 +18,7 @@ import { Vendor } from './VendorsScreen';
 
 import CartButton from '../components/CartButton';
 import ProductCard from '../components/ProductCard';
-import SearchFilterRow from '../components/SearchFilterRow'; // Imported your new modular row
+import SearchFilterRow from '../components/SearchFilterRow';
 
 interface StoreCategory {
   id: number;
@@ -182,7 +182,6 @@ export default function VendorInfoScreen({
         </SafeAreaView>
       </ImageBackground>
 
-      {/* ScrollView Refresh triggers */}
       <ScrollView 
         showsVerticalScrollIndicator={false} 
         contentContainerStyle={styles.scrollContent}
@@ -256,7 +255,7 @@ export default function VendorInfoScreen({
             <View style={styles.inlineGridContainer}>
               {products.map((item) => (
                 <View key={item.id} style={styles.gridCardWrapper}>
-                  {/* 2. Pass product directly inside navigation parameters */}
+                  {/* Pass product directly inside navigation parameters */}
                   <ProductCard 
                     product={item as any} 
                     onPress={() => {
@@ -400,7 +399,7 @@ const styles = StyleSheet.create({
         paddingHorizontal: 16,
         marginBottom: 24,
         gap: 16,
-        zIndex: 9999, // Floating menu touch priority
+        zIndex: 9999,
         position: 'relative',
     },
     productGridWrapper: {
@@ -414,8 +413,8 @@ const styles = StyleSheet.create({
         marginBottom: 24,
     },
     gridCardWrapper: {
-        width: '30.5%',              // Fits three columns perfectly
-        marginHorizontal: '1.4%',    // Balanced horizontal margins
+        width: '30.5%',
+        marginHorizontal: '1.4%',
     },
     paginationContainer: {
         flexDirection: 'row',

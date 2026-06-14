@@ -7,6 +7,8 @@ import {
   FlatList,
   ScrollView,
   TouchableOpacity,
+  Linking,
+  RefreshControl
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Icon } from "react-native-paper";
@@ -41,9 +43,9 @@ interface HomeScreenProps {
 const PRODUCT_TABS = ["Latest", "Popular", "Featured"];
 
 const TAB_ENDPOINTS: Record<string, string> = {
-  Latest:   "products?per_page=10&orderby=date&order=desc",
-  Popular:  "products?orderby=popularity&order=desc&per_page=10",
-  Featured: "products?featured=true&per_page=10",
+  Latest:   "products?per_page=10&orderby=date&order=desc&stock_status=instock",
+  Popular:  "products?orderby=popularity&order=desc&per_page=10&stock_status=instock",
+  Featured: "products?featured=true&per_page=10&stock_status=instock",
 };
 
 export default function HomeScreen({ onNavigate }: HomeScreenProps) {
@@ -53,10 +55,10 @@ export default function HomeScreen({ onNavigate }: HomeScreenProps) {
   const [searchResults, setSearchResults] = useState<any[]>([]);
   const [searchLoading, setSearchLoading] = useState(false);
   const [searchActive, setSearchActive] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
 
   const [popularTags, setPopularTags] = useState<Array<{ id: number, name: string }>>([]);
   const [genderFilter, setGenderFilter] = useState('');
-  const [activeTag, setActiveTag] = useState('');
 
   useEffect(() => {
     fetchWooCommerce('products/tags?per_page=6&orderby=count&order=desc')
@@ -81,6 +83,28 @@ export default function HomeScreen({ onNavigate }: HomeScreenProps) {
 
   const [tabProducts, setTabProducts] = useState<any[]>([]);
   const [tabLoading, setTabLoading] = useState(true);
+
+   const handleHomeRefresh = () => {
+    setRefreshing(true);
+    console.log("[HomeScreen] Refreshing layout feeds...");
+    
+    // Re-fetch homepage layout config first
+    const fetchConfig = fetch(`${BASE_URL}/wp-json/studentmarket/v1/homepage-config`).then(r => r.json());
+    const fetchTabs = fetchWooCommerce(TAB_ENDPOINTS[activeTab]);
+
+    Promise.all([fetchConfig, fetchTabs])
+      .then(([configData, rawProducts]) => {
+        console.log("[HomeScreen] Layout refreshed successfully.");
+        setSectionConfig(configData);
+        setTabProducts(rawProducts.map(adaptWooProductToUI));
+      })
+      .catch((err) => {
+        console.error('[HomeScreen Refresh Error]:', err);
+      })
+      .finally(() => {
+        setRefreshing(false); // Guarantees spinner dismissal under all outcomes
+      });
+  };
   
   useEffect(() => {
     fetch(`${BASE_URL}/wp-json/studentmarket/v1/homepage-config`)
@@ -140,7 +164,7 @@ export default function HomeScreen({ onNavigate }: HomeScreenProps) {
     virtualizedData.unshift({ type: 'category-circles', slug: 'category-circles-placeholder' });
   }
 
-return (
+  return (
     <SafeAreaView style={globalStyles.safe} edges={["top"]}>
 
       {/* Sticky Header Row */}
@@ -160,7 +184,7 @@ return (
         <CartButton onPress={() => onNavigate("Cart")} />
       </View>
 
-      {/* ── 1. Interactive Dimmed Backdrop (Closes search on click) ── */}
+      {/* ── Interactive Dimmed Backdrop (Closes search on click) ── */}
       {searchActive && (
         <TouchableOpacity 
           style={styles.backdrop} 
@@ -169,7 +193,6 @@ return (
         />
       )}
 
-      {/* Floating Suggestions Dropdown Card */}
       {searchActive && searchResults.length > 0 && (
         <View style={styles.dropdownCard}>
           <Text style={styles.dropdownLabel}>PRODUCT</Text>
@@ -192,7 +215,6 @@ return (
                     onNavigate("ProductDetails");
                   }}
                 >
-                  {/* Thumbnail */}
                   <View style={styles.thumbWrapper}>
                     {img ? (
                       <Image source={{ uri: img }} style={styles.thumb} contentFit="contain" />
@@ -201,7 +223,6 @@ return (
                     )}
                   </View>
 
-                  {/* Meta details */}
                   <View style={styles.metaRow}>
                     <Text style={styles.productName} numberOfLines={1}>
                       {product.name}
@@ -243,7 +264,8 @@ return (
           style={[globalStyles.scroll, { flex: 1 }]}
           contentContainerStyle={[globalStyles.scrollContent, { flexGrow: 1 }]}
           showsVerticalScrollIndicator={false}
-          scrollEnabled={!searchActive}           
+          scrollEnabled={!searchActive}
+          
           data={virtualizedData}
           keyExtractor={(item, index) => `${item.type}-${item.slug ?? index}`}
           renderItem={({ item }) => {
@@ -251,31 +273,76 @@ return (
               return (
                 <CategoryCircles 
                   onPressCategory={(id, name) => {
-                    onNavigate("ProductArchive", { type: 'category', id, name }); // Clean inline params
+                    onNavigate("ProductArchive", { type: 'category', id, name });
                   }}
                 />
               );
             }
+
+            if (item.type === 'banner-image') {
+
+              let resolvedImageUri = item.image || item.image_url || null;
+
+              // ─── AUTO-CORRECTOR: Fixes missing /wp-content directory paths dynamically ───
+              if (
+                resolvedImageUri && 
+                resolvedImageUri.includes('/uploads/') && 
+                !resolvedImageUri.includes('/wp-content/')
+              ) {
+                resolvedImageUri = resolvedImageUri.replace('/uploads/', '/wp-content/uploads/');
+              }
+
+              return (
+                <TouchableOpacity 
+                  style={styles.inlineAdCard}
+                  activeOpacity={0.9}
+                  onPress={() => {
+                    if (item.target_type === 'external' && item.target_url) {
+                      Linking.openURL(item.target_url).catch(console.error);
+                    } else if (item.target_type) {
+                      onNavigate("ProductArchive", {
+                        type: item.target_type,
+                        id: item.target_id,
+                        name: item.target_name,
+                      });
+                    }
+                  }}
+                >
+                  {resolvedImageUri ? (
+                    <Image 
+                      source={{ uri: resolvedImageUri }} 
+                      style={styles.inlineAdImage} 
+                      contentFit="cover" 
+                      resizeMode="cover"
+                    />
+                  ) : (
+                    <View style={[styles.inlineAdImage, { backgroundColor: C.border, justifyContent: 'center', alignItems: 'center' }]}>
+                      <Icon source="image-outline" size={32} color={C.subtext} />
+                    </View>
+                  )}
+                </TouchableOpacity>
+              );
+            }
+
             return (
               <DynamicProductSection
                 type={item.type}
                 title={item.title}
                 id={item.id}
                 onPressProduct={(product) => {
-                  onNavigate("ProductDetails", product); // Clean inline params
+                  onNavigate("ProductDetails", product); 
                 }}
                 onPressCategory={(archiveParam) => {
-                  onNavigate("ProductArchive", archiveParam); // Clean inline params
+                  onNavigate("ProductArchive", archiveParam); 
                 }}
               />
             );
           }}
 
-
           ListHeaderComponent={
             <>
               {/* Hero Banner */}
-              <HeroBanner />
+              <HeroBanner onNavigate={onNavigate} />
 
               {/* Featured tabs */}
               <View style={globalStyles.featuredSectionFrame}>
@@ -334,8 +401,8 @@ return (
                             // Find the correct tag matching this name
                             const matchedTag = popularTags.find(t => t.name === tab);
                             if (matchedTag) {
-                              // onSelectArchive({ type: 'tag', id: matchedTag.id, name: matchedTag.name });
-                              onNavigate("ProductArchive");
+                              // Pass the correct tag parameters to the archive screen!
+                              onNavigate("ProductArchive", { type: 'tag', id: matchedTag.id, name: matchedTag.name });
                             }
                           }
                         }} 
@@ -349,17 +416,27 @@ return (
               )}
             </>
           }
+          
           ListFooterComponent={
             <>
               {/* Tag cloud */}
               <TagClouds
                 onPressTag={(id, name) => {
-                  // onSelectArchive({ type: 'tag', id, name });
-                  onNavigate("ProductArchive");
+                  // Pass the clicked tag parameters to the archive screen!
+                  onNavigate("ProductArchive", { type: 'tag', id, name });
                 }}
               />
               <View style={{ height: 32 }} />
             </>
+          }
+
+          refreshControl={
+            <RefreshControl 
+              refreshing={refreshing} 
+              onRefresh={handleHomeRefresh} 
+              colors={[C.primary]} 
+              tintColor={C.primary} 
+            />
           }
         />
       )}
@@ -398,7 +475,7 @@ const styles = StyleSheet.create({
   },
   dropdownCard: {
     position: 'absolute',
-    top: 100, // Sits exactly below the fixed header (Safe Area + 50px input height)
+    top: 100,
     left: 16,
     right: 16,
     backgroundColor: C.white,
@@ -409,7 +486,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.15,
     shadowRadius: 12,
     elevation: 5,
-    zIndex: 10000, // Sits above all other elements
+    zIndex: 10000,
   },
   dropdownLabel: {
     fontSize: 11,
@@ -419,7 +496,7 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   scrollableDropdown: {
-    maxHeight: 240, // Trigger scroll
+    maxHeight: 240,
   },
   resultRow: {
     flexDirection: 'row',
@@ -434,8 +511,8 @@ const styles = StyleSheet.create({
   left: 0,
   right: 0,
   bottom: 0,
-  backgroundColor: 'rgba(0, 0, 0, 0.4)', // Dimmed overlay behind suggestions card
-  zIndex: 9998, // Sits exactly between FlatList (1) and HeaderRow (9999)
+  backgroundColor: 'rgba(0, 0, 0, 0.4)',
+  zIndex: 9998,
   },
   thumbWrapper: {
     width: 60,
@@ -485,5 +562,17 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#9CA3AF', 
     textDecorationLine: 'line-through',
+  },
+  inlineAdCard: {
+    height: 120, // Clean banner height
+    marginHorizontal: 16,
+    marginVertical: 12,
+    borderRadius: 16,
+    overflow: 'hidden',
+    backgroundColor: '#F3F4F6',
+    position: 'relative',
+  },
+  inlineAdImage: {
+    ...StyleSheet.absoluteFillObject, 
   },
 });

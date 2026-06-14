@@ -16,27 +16,20 @@ export default function VendorCard({ vendor, onPress }: VendorCardProps) {
       onPress={() => onPress("VendorInfo")}
       activeOpacity={0.7}
     >
-      {/* Left: Image Placeholder */}
       <View style={styles.imagePlaceholder}>
-        <Icon source="storefront-outline" size={28} color="rgba(255,255,255,0.7)" />
+        {vendor.gravatar ? (
+            <ImageBackground source={{ uri: vendor.gravatar }} style={styles.avatarImage} imageStyle={{ borderRadius: 46 }} />
+          ) : (
+            <Icon source="storefront-outline" size={50} color={C.white} />
+          )}
       </View>
 
-      {/* <View style={styles.imagePlaceholder}>
-        {vendor.gravatar ? (
-          <ImageBackground source={{ uri: vendor.gravatar }} style={styles.avatarImage} imageStyle={{ borderRadius: 46 }} />
-        ) : (
-          <Icon source="storefront-outline" size={50} color={C.white} />
-        )}
-      </View> */}
-
-      {/* Middle: Vendor Details */}
       <View style={styles.infoContainer}>
         <Text style={styles.vendorName}>{vendor.name}</Text>
         <Text style={styles.addressText}>{vendor.address}</Text>
         <Text style={styles.cityText}>{vendor.city}</Text>
       </View>
 
-      {/* Right: Navigation Indicator */}
       <Icon source="chevron-right" size={20} color={C.subtext} />
     </TouchableOpacity>
   );
@@ -56,8 +49,8 @@ const styles = StyleSheet.create({
   imagePlaceholder: {
     width: 72,
     height: 72,
-    borderRadius: 12,
-    backgroundColor: '#E2E8F0', // Light grey matching the mockup
+    borderRadius: 100,
+    backgroundColor: C.lightBlue,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -79,6 +72,10 @@ const styles = StyleSheet.create({
   },
   cityText: {
     fontSize: 11,
-    color: '#9CA3AF', // Slightly lighter grey for the tertiary town text
+    color: '#9CA3AF',
   },
+  avatarImage: {
+      width: '100%',
+    height: '100%',
+    },
 });

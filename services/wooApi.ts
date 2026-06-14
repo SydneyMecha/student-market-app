@@ -11,17 +11,17 @@ const CS = process.env.EXPO_PUBLIC_WC_SECRET;
 export const BASE_URL = API_URL as string;
 
 export const fetchWooCommerce = async (endpoint: string, options: RequestInit = {}) => {
-  // 1. Check if the endpoint string already contains a question mark
+  // Check if the endpoint string already contains a question mark
   const separator = endpoint.includes('?') ? '&' : '?';
   
-  // 2. Use the dynamic separator before attaching the keys
+  // Use the dynamic separator before attaching the keys
   const url = `${API_URL}/wp-json/wc/v3/${endpoint}${separator}consumer_key=${CK}&consumer_secret=${CS}`;
   
   try {
     const response = await fetch(url, options);
     const rawText = await response.text();
     
-    // 2. Try to parse it as JSON safely
+    // Try to parse it as JSON safely
     let data;
     try {
       data = JSON.parse(rawText);

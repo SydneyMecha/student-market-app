@@ -1,7 +1,6 @@
 import React, { memo } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Dimensions } from 'react-native';
 import { Image } from 'expo-image';
-// import { WooProduct } from '../types';
 import { C } from '../styles/theme';
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
@@ -18,7 +17,7 @@ interface WooProduct {
 
 interface ProductCardProps {
   product: WooProduct;
-  onPress?: () => void; // 1. Added optional callback prop
+  onPress?: () => void;
 }
 
 export default function ProductCard({ product, onPress }: ProductCardProps): React.JSX.Element {
@@ -28,7 +27,7 @@ export default function ProductCard({ product, onPress }: ProductCardProps): Rea
     <TouchableOpacity 
       style={styles.productCard} 
       activeOpacity={0.85}
-      onPress={onPress} // 2. Attached touch handler here
+      onPress={onPress}
     >
       <View style={styles.productImgWrapper}>
         {img ? (
@@ -67,10 +66,12 @@ const styles = StyleSheet.create({
     marginBottom: 6,
   },
   productImg: { width: CARD_WIDTH, height: CARD_WIDTH, borderRadius: 12 },
-  productName: { fontSize: 12, color: C.text, fontWeight: "600" },
-  // productPrice: { fontSize: 12, color: C.subtext, marginTop: 2 },
-
-    priceRow: {
+  productName: { 
+    fontSize: 12, 
+    color: C.text, 
+    fontWeight: "600" 
+  },
+  priceRow: {
     flexDirection: 'row',
     alignItems: 'center',
     marginTop: 4,
@@ -78,17 +79,17 @@ const styles = StyleSheet.create({
   productPrice: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#1F2937', // Default dark text color
+    color: C.secondary,
   },
   salePrice: {
     fontSize: 14,
     fontWeight: 'bold',
-    color: C.primary, // Sale price color
+    color: C.primary,
     marginRight: 6,
   },
   originalPrice: {
     fontSize: 12,
-    color: C.subtext, // Original price text color
-    textDecorationLine: 'line-through', // Adds the classic strikethrough line
+    color: C.subtext,
+    textDecorationLine: 'line-through',
   },
 });

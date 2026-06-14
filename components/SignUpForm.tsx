@@ -1,13 +1,11 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, Text, TextInput, StyleSheet, TouchableOpacity, Linking } from 'react-native';
 import { Icon } from 'react-native-paper';
-import { C } from '../styles/theme'; // Adjust path as needed
-
+import { C } from '../styles/theme';
 interface SignUpFormProps {
   onRegister: (email: string) => void;
 }
 
-// Local helper component to render inputs cleanly with custom helper texts
 interface FormInputProps {
   label: string;
   placeholder: string;
@@ -45,7 +43,6 @@ const FormInput = ({
 export default function SignUpForm({ onRegister }: SignUpFormProps) {
   const [accountType, setAccountType] = useState<'customer' | 'vendor'>('customer');
   
-  // Registration Form States
   const [email, setEmail] = useState('');
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
@@ -59,21 +56,19 @@ export default function SignUpForm({ onRegister }: SignUpFormProps) {
   const [state, setState] = useState('');
   const [phone, setPhone] = useState('');
 
-  // Auto-slugify Shop Name into a clean URL slug (e.g. "My Shop!" to "my-shop")
   const handleShopNameChange = (text: string) => {
     setShopName(text);
     const slug = text
       .toLowerCase()
-      .replace(/[^a-z0-9\s-]/g, '') // Remove special characters
-      .replace(/\s+/g, '-')         // Replace spaces with dashes
-      .replace(/-+/g, '-');        // Collapse consecutive dashes
+      .replace(/[^a-z0-9\s-]/g, '')
+      .replace(/\s+/g, '-') 
+      .replace(/-+/g, '-');
     setShopUrl(slug);
   };
 
   return (
     <View style={styles.formContainer}>
       
-      {/* Email Input Field */}
       <FormInput 
         label="Email address *" 
         placeholder="Email address" 
@@ -83,7 +78,6 @@ export default function SignUpForm({ onRegister }: SignUpFormProps) {
         helperText="A link to set a new password will be sent to your email address."
       />
 
-      {/* Renders the complete dynamic Dokan vendor fields only if Vendor mode is checked */}
       {accountType === 'vendor' && (
         <View style={styles.vendorBlock}>
           
@@ -105,7 +99,7 @@ export default function SignUpForm({ onRegister }: SignUpFormProps) {
             label="Shop Name *" 
             placeholder="Shop Name" 
             value={shopName} 
-            onChangeText={handleShopNameChange} // Triggers auto-slugifier
+            onChangeText={handleShopNameChange}
           />
 
           <FormInput 
@@ -173,7 +167,6 @@ export default function SignUpForm({ onRegister }: SignUpFormProps) {
         </View>
       )}
 
-      {/* Account Type Selector (Dokan Web Radio Buttons) */}
       <View style={styles.radioRow}>
         <TouchableOpacity 
           style={styles.radioBtn} 
@@ -204,7 +197,16 @@ export default function SignUpForm({ onRegister }: SignUpFormProps) {
 
       <Text style={styles.privacyText}>
         Your personal data will be used to support your experience throughout this website, 
-        to manage access to your account, and for other purposes described in our <Text style={styles.privacyLink}>privacy policy.</Text>
+        to manage access to your account, and for other purposes described in our 
+        <TouchableOpacity 
+          activeOpacity={0.7}
+          onPress={() => {
+            const url = 'https://studentmarket.co.ke/privacy-policy/';
+            Linking.openURL(url).catch((err) => console.error("[Privacy Policy Redirect Error]:", err));
+          }}
+        >
+          <Text style={styles.privacyLink}> privacy policy.</Text>
+        </TouchableOpacity>
       </Text>
 
       {/* Register Button */}
@@ -222,7 +224,7 @@ const styles = StyleSheet.create({
   label: { fontSize: 13, fontWeight: '600', color: C.text, marginBottom: 8 },
   input: {
     fontSize: 14, color: C.text, paddingVertical: 8,
-    borderBottomWidth: 1, borderBottomColor: '#D1D5DB',
+    borderBottomWidth: 1, borderBottomColor: C.borderBottom,
   },
   helperText: {
     fontSize: 11,
@@ -242,7 +244,7 @@ const styles = StyleSheet.create({
   
   submitBtn: {
     height: 52, borderRadius: 26,
-    backgroundColor: '#1C4A3A',
+    backgroundColor: C.primary,
     alignItems: 'center', justifyContent: 'center',
   },
   submitBtnText: { color: C.white, fontSize: 16, fontWeight: '600' },
