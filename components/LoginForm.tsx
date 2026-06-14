@@ -3,7 +3,11 @@ import { View, Text, TextInput, StyleSheet, TouchableOpacity } from 'react-nativ
 import { Icon } from 'react-native-paper';
 import { C } from '../styles/theme';
 
-export default function LoginForm({ onLogin }: { onLogin: () => void }) {
+interface LoginFormProps {
+  onLogin: (email: string) => void; // Updated callback signature
+}
+
+export default function LoginForm({ onLogin }: LoginFormProps) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -17,7 +21,7 @@ export default function LoginForm({ onLogin }: { onLogin: () => void }) {
         <Text style={styles.label}>Email</Text>
         <TextInput
           style={styles.input}
-          placeholder="johndoe@gmail.com"
+          placeholder="Email"
           placeholderTextColor={C.subtext}
           keyboardType="email-address"
           autoCapitalize="none"
@@ -64,8 +68,12 @@ export default function LoginForm({ onLogin }: { onLogin: () => void }) {
         </TouchableOpacity>
       </View>
 
-      {/* Log In Button */}
-      <TouchableOpacity style={styles.submitBtn} onPress={onLogin} activeOpacity={0.9}>
+      {/* Log In Button (Triggers dynamic callback with email value) */}
+      <TouchableOpacity 
+        style={styles.submitBtn} 
+        onPress={() => onLogin(email)} 
+        activeOpacity={0.9}
+      >
         <Text style={styles.submitBtnText}>Log In</Text>
       </TouchableOpacity>
 

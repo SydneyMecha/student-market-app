@@ -10,19 +10,20 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Icon } from 'react-native-paper';
 import { C, globalStyles } from '../styles/theme';
 import CartButton from '../components/CartButton';
-import { transparent } from 'react-native-paper/lib/typescript/styles/themes/v2/colors';
 
 interface ProfileScreenProps {
-  onNavigate: (screenName: string) => void;
+  currentUser: any; // Mapped logged-in customer object passed from App.js
+  onNavigate: (screenName: string, params?: any) => void;
+  onLogout: () => void; // Added logout callback
 }
 
-export default function ProfileScreen({ onNavigate }: ProfileScreenProps) {
+export default function ProfileScreen({ currentUser, onNavigate, onLogout }: ProfileScreenProps) {
   const userProfile = {
-    username: "MechaWRLD",
-    email: "sydneymecha@gmail.com",
-    fullName: "Sydney Mecha",
+    username: currentUser?.username || "NaN",
+    email: currentUser?.email || "NaN",
+    fullName: currentUser?.fullName || "NaN",
     orderCount: 0,
-    location: "City/Town"
+    location: currentUser?.billing?.city || "NaN" // Safeguards missing fields as "NaN"
   };
 
   const menuOptions = [
@@ -74,10 +75,10 @@ export default function ProfileScreen({ onNavigate }: ProfileScreenProps) {
                 <CartButton onPress={() => onNavigate('Cart')} />
             </View>
 
-            {/* User Profile Avatar Frame */}
+            {/* Dynamic User Profile Avatar Frame */}
             <View style={styles.userMetaBlock}>
                 <View style={styles.avatarContainer}>
-                <Icon source="account-outline" size={64} color={C.white} />
+                  <Icon source="account-outline" size={64} color={C.white} />
                 </View>
                 <Text style={styles.usernameText}>{userProfile.username}</Text>
                 <Text style={styles.emailText}>{userProfile.email}</Text>
@@ -94,7 +95,15 @@ export default function ProfileScreen({ onNavigate }: ProfileScreenProps) {
                 <TouchableOpacity
                 key={option.id}
                 style={styles.menuCell}
-                onPress={() => onNavigate(option.target)}
+                onPress={() => {
+                  if (option.id === 'address') {
+                    onNavigate("EditProfile", { mode: 'address' });
+                  } else if (option.id === 'edit_profile') {
+                    onNavigate("EditProfile", { mode: 'personal' });
+                  } else {
+                    onNavigate(option.target);
+                  }
+                }}
                 activeOpacity={0.7}
                 >
                 <View style={styles.iconBox}>
@@ -111,13 +120,10 @@ export default function ProfileScreen({ onNavigate }: ProfileScreenProps) {
             ))}
             </View>
 
+            {/* 2. Connected log-out session helper */}
             <TouchableOpacity 
               style={styles.logoutButton}
-              onPress={() => {
-                console.log('Auth Action: Clear Token');
-                
-                onNavigate('Auth');
-              }}
+              onPress={onLogout}
               activeOpacity={0.8}
             >
               <Text style={styles.logoutText}>Log Out</Text>

@@ -9,35 +9,32 @@ import ProductCard from './ProductCard';
 
 interface ProductSectionProps {
   title: string;
-  products: WooProduct[];
+  products: any[];
   showViewMore?: boolean;
+  onPressProduct: (product: any) => void;
+  onViewMore?: () => void;
 }
 
-export default function ProductSection({ title, products, showViewMore }: ProductSectionProps) {
-  // If no products exist for this category yet, return nothing to keep the screen clean
-  if (!products || products.length === 0) return null;
-
-  return (
-  <View style={globalStyles.featuredSectionFrame}>
-    <SectionHeader 
-      title={title} 
-      onViewMore={() => {}} 
-      showViewMore={showViewMore}
-    />
-
-    <FlatList
-      data={products}
-      horizontal
-      showsHorizontalScrollIndicator={false}
-      keyExtractor={(item: { id: { toString: () => any; }; }) => item.id.toString()}
-      renderItem={({ item }) => <ProductCard product={item} />}
-
-      initialNumToRender={3}
-      maxToRenderPerBatch={3}
-      windowSize={5}
-      removeClippedSubviews={true}
-    />
-    
-  </View>
-);
+export default function ProductSection({ title, products, showViewMore, onPressProduct, onViewMore  }: ProductSectionProps) {
+   return (
+    <View style={globalStyles.featuredSectionFrame}>
+      <SectionHeader 
+        title={title} 
+        onViewMore={onViewMore ?? (() => {})} 
+        showViewMore={showViewMore} 
+      />
+      
+      <FlatList
+        data={products}
+        horizontal
+        keyExtractor={(item) => item.id.toString()}
+        renderItem={({ item }) => (
+          <ProductCard 
+            product={item} 
+            onPress={() => onPressProduct(item)} 
+          />
+        )}
+      />
+    </View>
+  );
 }

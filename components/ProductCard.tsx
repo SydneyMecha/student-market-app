@@ -16,10 +16,20 @@ interface WooProduct {
   images: Array<{ id: number; src: string; alt?: string }>;
 }
 
-export default function ProductCard({ product }: { product: WooProduct }): React.JSX.Element {
+interface ProductCardProps {
+  product: WooProduct;
+  onPress?: () => void; // 1. Added optional callback prop
+}
+
+export default function ProductCard({ product, onPress }: ProductCardProps): React.JSX.Element {
   const img = product.images[0]?.src;
+  
   return (
-    <TouchableOpacity style={styles.productCard} activeOpacity={0.85}>
+    <TouchableOpacity 
+      style={styles.productCard} 
+      activeOpacity={0.85}
+      onPress={onPress} // 2. Attached touch handler here
+    >
       <View style={styles.productImgWrapper}>
         {img ? (
           <Image source={{ uri: img }} style={styles.productImg} contentFit="cover" />
@@ -29,18 +39,13 @@ export default function ProductCard({ product }: { product: WooProduct }): React
       </View>
       <Text style={styles.productName} numberOfLines={1}>{product.name}</Text>
       
-      {/* Price Display Row */}
       <View style={styles.priceRow}>
         {product.on_sale ? (
           <>
-            {/* Sale Price (color: C.primary) */}
             <Text style={styles.salePrice}>Ksh {product.price}</Text>
-            
-            {/* Original Price (color: C.subtext) */}
             <Text style={styles.originalPrice}>Ksh {product.regular_price}</Text>
           </>
         ) : (
-          /* Normal Price if not on sale */
           <Text style={styles.productPrice}>Ksh {product.price}</Text>
         )}
       </View>

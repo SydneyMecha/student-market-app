@@ -1,15 +1,16 @@
-import React, { useState, useEffect, useRef  } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   View,
   ActivityIndicator,
   Text,
   StyleSheet,
   FlatList,
-  ScrollView, 
-  TouchableOpacity
+  ScrollView,
+  TouchableOpacity,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Icon } from "react-native-paper";
+import { Image } from "expo-image";
 
 import { C, globalStyles } from "../styles/theme";
 import { adaptWooProductToUI } from "../utils/adapters";
@@ -24,8 +25,6 @@ import TagClouds from "../components/TagClouds";
 import CartButton from "../components/CartButton";
 import DynamicProductSection from "../components/DynamicProductSection";
 
-// ─── Types ────────────────────────────────────────────────────────────────────
-
 interface SectionConfig {
   type: string;
   title: string;
@@ -33,59 +32,56 @@ interface SectionConfig {
   id?: number | null;
 }
 
+type ArchiveType = 'category' | 'tag' | 'on_sale' | 'featured' | 'latest' | 'popular';
+
 interface HomeScreenProps {
-  onNavigate: (screenName: string) => void;
+  onNavigate: (screenName: string, params?: any) => void;
 }
 
-// ─── Constants ────────────────────────────────────────────────────────────────
+const PRODUCT_TABS = ["Latest", "Popular", "Featured"];
 
-const PRODUCT_TABS = ["Latest", "Featured", "Popular"];
-
-// Map each tab name to its WooCommerce query params
 const TAB_ENDPOINTS: Record<string, string> = {
   Latest:   "products?per_page=10&orderby=date&order=desc",
-  Featured: "products?featured=true&per_page=10",
   Popular:  "products?orderby=popularity&order=desc&per_page=10",
+  Featured: "products?featured=true&per_page=10",
 };
 
-// ─── HomeScreen ───────────────────────────────────────────────────────────────
-
 export default function HomeScreen({ onNavigate }: HomeScreenProps) {
-  // Create a reference to the main vertical FlatList
-  const flatListRef = useRef<FlatList>(null);
-  
+  const flatListRef = useRef<FlatList>(null);  
   const [activeTab, setActiveTab] = useState("Latest");
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<any[]>([]);
+  const [searchLoading, setSearchLoading] = useState(false);
+  const [searchActive, setSearchActive] = useState(false);
 
-  // States for fetching the top 6 tags
-  const [popularTags, setPopularTags] = useState<string[]>([]);
+  const [popularTags, setPopularTags] = useState<Array<{ id: number, name: string }>>([]);
   const [genderFilter, setGenderFilter] = useState('');
   const [activeTag, setActiveTag] = useState('');
 
-  // Fetch the 6 most popular tags on mount
   useEffect(() => {
     fetchWooCommerce('products/tags?per_page=6&orderby=count&order=desc')
       .then((data: any[]) => {
-        // Map to string names for the TabBar component
-        const tagNames = data.map(tag => tag.name);
-        setPopularTags(tagNames);
+        // Map to complete objects with stable IDs
+        const formattedTags = data.map(tag => ({
+          id: tag.id,
+          name: tag.name,
+        }));
+        setPopularTags(formattedTags);
       })
       .catch((err) => {
         console.error('[Popular Tags Fetch Error]:', err);
       });
   }, []);
 
-  const tabsToRender = [...popularTags, "See More ▾"];
+  const tabsToRender = [...popularTags.map(t => t.name), "See More ▾"];
 
-  // Homepage layout config — fetched from WordPress, controls which sections render
   const [sectionConfig, setSectionConfig] = useState<SectionConfig[]>([]);
   const [configLoading, setConfigLoading] = useState(true);
-  const [configError, setConfigError]     = useState<string | null>(null);
+  const [configError, setConfigError] = useState<string | null>(null);
 
-  // Featured tabs — own isolated fetch, swaps when tab changes
-  const [tabProducts, setTabProducts]     = useState<any[]>([]);
-  const [tabLoading, setTabLoading]       = useState(true);
+  const [tabProducts, setTabProducts] = useState<any[]>([]);
+  const [tabLoading, setTabLoading] = useState(true);
   
-  // ── Fetch homepage layout config from WordPress ──────────────────────────
   useEffect(() => {
     fetch(`${BASE_URL}/wp-json/studentmarket/v1/homepage-config`)
       .then((r) => {
@@ -97,7 +93,6 @@ export default function HomeScreen({ onNavigate }: HomeScreenProps) {
       .finally(() => setConfigLoading(false));
   }, []);
 
-  // ── Fetch tab products whenever the active tab changes ───────────────────
   useEffect(() => {
     setTabLoading(true);
     fetchWooCommerce(TAB_ENDPOINTS[activeTab])
@@ -106,40 +101,129 @@ export default function HomeScreen({ onNavigate }: HomeScreenProps) {
       .finally(() => setTabLoading(false));
   }, [activeTab]);
 
-  // ─── Prepare the data for FlatList ──────────────────────────────────────────
+  // Debounced Search suggestion fetcher
+  useEffect(() => {
+    if (!searchQuery.trim()) {
+      setSearchResults([]);
+      setSearchActive(false);
+      return;
+    }
 
+    setSearchLoading(true);
+    const delayDebounceFn = setTimeout(() => {
+      fetchWooCommerce(`products?search=${searchQuery}&per_page=10`)
+        .then((raw) => {
+          const mapped = raw.map(adaptWooProductToUI);
+          setSearchResults(mapped);
+          setSearchActive(mapped.length > 0);
+        })
+        .catch((err) => console.error('[Suggestions Fetch Error]:', err))
+        .finally(() => setSearchLoading(false));
+    }, 400);
+
+    return () => clearTimeout(delayDebounceFn);
+  }, [searchQuery]);
+
+  // Prepare dynamic home feed layout
   const virtualizedData: any[] = [];
   let inserted = false;
 
   sectionConfig.forEach((section) => {
     virtualizedData.push(section);
-    
-    // If we just added the "Offers" (on_sale) section, insert the Category Circles placeholder right after it
     if (section.type === 'on_sale') {
-      virtualizedData.push({ 
-        type: 'category-circles', 
-        slug: 'category-circles-placeholder' 
-      });
+      virtualizedData.push({ type: 'category-circles', slug: 'category-circles-placeholder' });
       inserted = true;
     }
   });
 
-  // Fallback: If "Offers" isn't present in your WordPress config, place the circles at the top of the list
   if (!inserted && sectionConfig.length > 0) {
-    virtualizedData.unshift({ 
-      type: 'category-circles', 
-      slug: 'category-circles-placeholder' 
-    });
+    virtualizedData.unshift({ type: 'category-circles', slug: 'category-circles-placeholder' });
   }
 
-  // ─── Render ───────────────────────────────────────────────────────────────
-  return (
+return (
     <SafeAreaView style={globalStyles.safe} edges={["top"]}>
 
-      <View style={globalStyles.headerRow}>
-        <SearchBar placeholderText="Search for products..." />
+      {/* Sticky Header Row */}
+      <View style={[globalStyles.headerRow, styles.stickyHeaderWrapper]}>
+        <SearchBar 
+          placeholderText="Search for products..." 
+          value={searchQuery}
+          onChangeText={setSearchQuery}
+          loading={searchLoading}
+          onFocus={() => {
+            // Re-open the suggestions dropdown if there is already active text in the search input
+            if (searchQuery.trim().length > 0 && searchResults.length > 0) {
+              setSearchActive(true);
+            }
+          }}
+        />
         <CartButton onPress={() => onNavigate("Cart")} />
       </View>
+
+      {/* ── 1. Interactive Dimmed Backdrop (Closes search on click) ── */}
+      {searchActive && (
+        <TouchableOpacity 
+          style={styles.backdrop} 
+          activeOpacity={1} 
+          onPress={() => setSearchActive(false)} // Dismiss search
+        />
+      )}
+
+      {/* Floating Suggestions Dropdown Card */}
+      {searchActive && searchResults.length > 0 && (
+        <View style={styles.dropdownCard}>
+          <Text style={styles.dropdownLabel}>PRODUCT</Text>
+          <ScrollView 
+            style={styles.scrollableDropdown}
+            showsVerticalScrollIndicator={true}
+            nestedScrollEnabled={true}
+          >
+            {searchResults.map((product) => {
+              const img = product.images[0]?.src;
+              return (
+                <TouchableOpacity
+                  key={product.id}
+                  style={styles.resultRow}
+                  activeOpacity={0.8}
+                  onPress={() => {
+                    setSearchQuery(''); // Reset state
+                    setSearchResults([]);
+                    setSearchActive(false);
+                    onNavigate("ProductDetails");
+                  }}
+                >
+                  {/* Thumbnail */}
+                  <View style={styles.thumbWrapper}>
+                    {img ? (
+                      <Image source={{ uri: img }} style={styles.thumb} contentFit="contain" />
+                    ) : (
+                      <View style={[styles.thumb, { backgroundColor: C.border }]} />
+                    )}
+                  </View>
+
+                  {/* Meta details */}
+                  <View style={styles.metaRow}>
+                    <Text style={styles.productName} numberOfLines={1}>
+                      {product.name}
+                    </Text>
+                    
+                    <View style={styles.priceContainer}>
+                      {product.on_sale ? (
+                        <>
+                          <Text style={styles.originalPrice}>Ksh {product.regular_price}</Text>
+                          <Text style={styles.salePrice}>Ksh {product.price}</Text>
+                        </>
+                      ) : (
+                        <Text style={styles.normalPrice}>Ksh {product.price}</Text>
+                      )}
+                    </View>
+                  </View>
+                </TouchableOpacity>
+              );
+            })}
+          </ScrollView>
+        </View>
+      )}
 
       {configLoading ? (
         <View style={styles.centerStage}>
@@ -159,32 +243,41 @@ export default function HomeScreen({ onNavigate }: HomeScreenProps) {
           style={[globalStyles.scroll, { flex: 1 }]}
           contentContainerStyle={[globalStyles.scrollContent, { flexGrow: 1 }]}
           showsVerticalScrollIndicator={false}
-          
-          // 1. Pass the virtualized data array
-          data={virtualizedData} 
-          
+          scrollEnabled={!searchActive}           
+          data={virtualizedData}
           keyExtractor={(item, index) => `${item.type}-${item.slug ?? index}`}
-          
-          // 2. Render either CategoryCircles or the standard DynamicProductSection
           renderItem={({ item }) => {
             if (item.type === 'category-circles') {
-              return <CategoryCircles />;
+              return (
+                <CategoryCircles 
+                  onPressCategory={(id, name) => {
+                    onNavigate("ProductArchive", { type: 'category', id, name }); // Clean inline params
+                  }}
+                />
+              );
             }
             return (
               <DynamicProductSection
                 type={item.type}
                 title={item.title}
                 id={item.id}
+                onPressProduct={(product) => {
+                  onNavigate("ProductDetails", product); // Clean inline params
+                }}
+                onPressCategory={(archiveParam) => {
+                  onNavigate("ProductArchive", archiveParam); // Clean inline params
+                }}
               />
             );
           }}
-          
+
+
           ListHeaderComponent={
             <>
-              {/* ── Hero ──────────────────────────────────────────────────────── */}
+              {/* Hero Banner */}
               <HeroBanner />
 
-              {/* ── Featured tabs ────────────────────────────────────────────── */}
+              {/* Featured tabs */}
               <View style={globalStyles.featuredSectionFrame}>
                 <TabBar
                   tabs={PRODUCT_TABS}
@@ -200,54 +293,70 @@ export default function HomeScreen({ onNavigate }: HomeScreenProps) {
                   <ProductGrid
                     products={tabProducts.slice(0, 10)}
                     showViewMore={true}
+                    onPressProduct={(product) => {
+                      onNavigate("ProductDetails", product); // Clean inline params
+                    }}
+                    onViewMore={() => {
+                      let archiveType: 'on_sale' | 'featured' | 'latest' | 'popular' = 'latest';
+                      let archiveName = 'Latest Products';
+
+                      if (activeTab === 'Popular') {
+                        archiveType = 'popular';
+                        archiveName = 'Popular Products';
+                      } else if (activeTab === 'Featured') {
+                        archiveType = 'featured';
+                        archiveName = 'Featured Products';
+                      }
+
+                      // Pass parameters inline directly to ProductArchive
+                      onNavigate("ProductArchive", {
+                        type: archiveType,
+                        id: 0,
+                        name: archiveName,
+                      });
+                    }}
                   />
                 )}
               </View>
 
-              {/* ── Dynamic Tag Chips (Horizontally Scrollable) ────────────────── */}
+              {/* Dynamic Tag Chips */}
               {popularTags.length > 0 && (
-                <ScrollView
-                  horizontal
-                  showsHorizontalScrollIndicator={false}
-                  style={globalStyles.horizontalScrollWrapper}
-                  contentContainerStyle={globalStyles.horizontalScrollContent}
-                >
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.horizontalScrollWrapper} contentContainerStyle={styles.horizontalScrollContent}>
                   {tabsToRender.map((tab) => {
                     const isSelected = genderFilter === tab;
                     return (
-                      <TouchableOpacity
-                        key={tab}
+                      <TouchableOpacity 
+                        key={tab} 
                         onPress={() => {
                           if (tab === "See More ▾") {
                             flatListRef.current?.scrollToEnd({ animated: true });
                           } else {
-                            setGenderFilter(tab);
+                            // Find the correct tag matching this name
+                            const matchedTag = popularTags.find(t => t.name === tab);
+                            if (matchedTag) {
+                              // onSelectArchive({ type: 'tag', id: matchedTag.id, name: matchedTag.name });
+                              onNavigate("ProductArchive");
+                            }
                           }
-                        }}
-                        style={[
-                          globalStyles.tagChip,
-                          { marginRight: 8 },
-                        ]}
-                        activeOpacity={0.8}
+                        }} 
+                        style={[globalStyles.tagChip, { marginRight: 8 }, isSelected && { backgroundColor: C.primary }]}
                       >
-                        <Text style={[globalStyles.tagChipText]}>
-                          {tab}
-                        </Text>
+                        <Text style={[globalStyles.tagChipText, isSelected && { color: '#FFF' }]}>{tab}</Text>
                       </TouchableOpacity>
                     );
                   })}
                 </ScrollView>
               )}
-
-              {/* Note: <CategoryCircles /> has been successfully removed from here */}
             </>
           }
           ListFooterComponent={
             <>
-              {/* ── Tag cloud ────────────────────────────────────────────────── */}
+              {/* Tag cloud */}
               <TagClouds
-                activeTag={activeTag}
-                onSelectTag={setActiveTag}
+                onPressTag={(id, name) => {
+                  // onSelectArchive({ type: 'tag', id, name });
+                  onNavigate("ProductArchive");
+                }}
               />
               <View style={{ height: 32 }} />
             </>
@@ -258,25 +367,123 @@ export default function HomeScreen({ onNavigate }: HomeScreenProps) {
   );
 }
 
-// ─── Styles ───────────────────────────────────────────────────────────────────
-
 const styles = StyleSheet.create({
   centerStage: {
     flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    padding: 24,
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 12,
   },
   stateText: {
-    marginTop: 12,
-    fontSize: 15,
-    color: "#6B7280",
-    textAlign: "center",
-    fontWeight: "500",
+    fontSize: 14,
+    color: C.subtext,
   },
   tabSpinner: {
-    height: 180,
-    justifyContent: "center",
-    alignItems: "center",
+    paddingVertical: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  horizontalScrollWrapper: {
+    marginVertical: 12,
+  },
+  horizontalScrollContent: {
+    paddingHorizontal: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  stickyHeaderWrapper: {
+    zIndex: 9999, 
+    position: 'relative',
+    backgroundColor: C.bg,
+  },
+  dropdownCard: {
+    position: 'absolute',
+    top: 100, // Sits exactly below the fixed header (Safe Area + 50px input height)
+    left: 16,
+    right: 16,
+    backgroundColor: C.white,
+    borderRadius: 20,
+    padding: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    elevation: 5,
+    zIndex: 10000, // Sits above all other elements
+  },
+  dropdownLabel: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#9CA3AF', 
+    letterSpacing: 1,
+    marginBottom: 10,
+  },
+  scrollableDropdown: {
+    maxHeight: 240, // Trigger scroll
+  },
+  resultRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F3F4F6',
+  },
+  backdrop: {
+  position: 'absolute',
+  top: 0,
+  left: 0,
+  right: 0,
+  bottom: 0,
+  backgroundColor: 'rgba(0, 0, 0, 0.4)', // Dimmed overlay behind suggestions card
+  zIndex: 9998, // Sits exactly between FlatList (1) and HeaderRow (9999)
+  },
+  thumbWrapper: {
+    width: 60,
+    height: 60,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#F9FAFB',
+    marginRight: 12,
+  },
+  thumb: {
+    width: 50,
+    height: 50,
+    borderRadius: 12,
+  },
+  metaRow: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  productName: {
+    flex: 1,
+    fontSize: 14,
+    color: '#3B82F6', 
+    fontWeight: '600',
+  },
+  priceContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  normalPrice: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    color: C.text,
+  },
+  salePrice: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    color: '#111827', 
+  },
+  originalPrice: {
+    fontSize: 12,
+    color: '#9CA3AF', 
+    textDecorationLine: 'line-through',
   },
 });

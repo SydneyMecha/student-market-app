@@ -3,7 +3,6 @@ import { View, Text, TouchableOpacity, LayoutAnimation, ActivityIndicator } from
 import { C, globalStyles } from '../styles/theme';
 import { fetchWooCommerce } from '../services/wooApi';
 
-// Interface representing the WooCommerce tag schema
 interface WooCommerceTag {
   id: number;
   name: string;
@@ -12,18 +11,15 @@ interface WooCommerceTag {
 }
 
 interface TagCloudsProps {
-  activeTag: string;
-  onSelectTag: (tag: string) => void;
+  onPressTag: (id: number, name: string) => void; // Updated callback prop
 }
 
-export default function TagClouds({ activeTag, onSelectTag }: TagCloudsProps) {
+export default function TagClouds({ onPressTag }: TagCloudsProps) {
   const [tags, setTags] = useState<WooCommerceTag[]>([]);
   const [loading, setLoading] = useState(true);
   const [visibleCount, setVisibleCount] = useState(20);
 
-  // Fetch product tags dynamically on mount
   useEffect(() => {
-    // Fetches top 50 tags, ordered by the number of products they contain
     fetchWooCommerce('products/tags?per_page=50&orderby=count&order=desc')
       .then((rawTags: any[]) => {
         const formatted = rawTags.map((t) => ({
@@ -40,13 +36,11 @@ export default function TagClouds({ activeTag, onSelectTag }: TagCloudsProps) {
       .finally(() => setLoading(false));
   }, []);
 
-  // Compute true state boundaries using the dynamic tags array length
   const isAllShown = visibleCount >= tags.length;
   const visibleTags = tags.slice(0, visibleCount);
 
   const handleToggleLimit = () => {
     LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-    
     if (isAllShown) {
       setVisibleCount(20);
     } else {
@@ -67,17 +61,11 @@ export default function TagClouds({ activeTag, onSelectTag }: TagCloudsProps) {
   return (
     <View style={globalStyles.tagCloud}>
       {visibleTags.map((tag) => {
-        // Check if the current tag matches activeTag (using name or slug)
-        const isSelected = activeTag === tag.name || activeTag === tag.slug;
-
         return (
           <TouchableOpacity
-            key={tag.id} // Uses database ID as stable key
-            onPress={() => onSelectTag(tag.name)} // Change to tag.slug if your tag routing matches slugs
-            style={[
-              globalStyles.tagChip,
-              isSelected && { backgroundColor: '#E5E7EB' } // Optional highlight style for active tags
-            ]}
+            key={tag.id} 
+            onPress={() => onPressTag(tag.id, tag.name)} // Passes back ID and Name
+            style={globalStyles.tagChip}
             activeOpacity={0.8}
           >
             <Text style={globalStyles.tagChipText}>
@@ -87,7 +75,6 @@ export default function TagClouds({ activeTag, onSelectTag }: TagCloudsProps) {
         );
       })}
       
-      {/* Show more/less button only if there are more than 20 tags */}
       {tags.length > 20 && (
         <TouchableOpacity 
           style={[globalStyles.tagChip, {backgroundColor: C.primary}]} 

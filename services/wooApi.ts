@@ -19,7 +19,17 @@ export const fetchWooCommerce = async (endpoint: string, options: RequestInit = 
   
   try {
     const response = await fetch(url, options);
-    const data = await response.json();
+    const rawText = await response.text();
+    
+    // 2. Try to parse it as JSON safely
+    let data;
+    try {
+      data = JSON.parse(rawText);
+    } catch (e) {
+      // If parsing fails, the server sent back HTML. Log the entire HTML payload!
+      console.error(`[WooCommerce API HTML CRASH - ${endpoint}]:`, rawText);
+      throw new Error("Server returned HTML error. Check your Expo terminal logs.");
+    }
     
     if (!response.ok) {
       throw new Error(data.message || "Failed to fetch data from Student Market");

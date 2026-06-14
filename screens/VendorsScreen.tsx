@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -9,13 +9,11 @@ import {
   TextInput,
 } from "react-native";
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Icon , Menu} from 'react-native-paper';
+import { Icon, Menu } from 'react-native-paper'; // Imported Menu locally
 import { C, globalStyles } from '../styles/theme';
 import { BASE_URL } from '../services/wooApi';
 import CartButton from '../components/CartButton';
 import VendorCard from '../components/VendorCard';
-import SearchFilterRow from '../components/SearchFilterRow';
-
 
 export interface Vendor {
   id: string;
@@ -27,17 +25,16 @@ export interface Vendor {
 }
 
 interface VendorsScreenProps {
-  onNavigate: (screenName: string) => void;
-  onSelectVendor: (vendor: Vendor) => void;
+  onNavigate: (screenName: string, params?: any) => void;
 }
 
-export default function VendorsScreen({ onNavigate, onSelectVendor }: VendorsScreenProps) {
+export default function VendorsScreen({ onNavigate }: VendorsScreenProps) {
   const [vendors, setVendors] = useState<Vendor[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
 
   // Sorting & Menu States
   const [menuVisible, setMenuVisible] = useState(false);
-  const [sortBy, setSortBy] = useState('registered'); // 'registered' | 'popularity' | 'rand'
+  const [sortBy, setSortBy] = useState('registered'); 
   const [sortLabel, setSortLabel] = useState('Most Recent');
   
   // Pagination & Loading States
@@ -54,56 +51,55 @@ export default function VendorsScreen({ onNavigate, onSelectVendor }: VendorsScr
 
     if (sortOption === 'registered') {
       sortParams = '&orderby=registered&order=desc';
-    } else if (sortOption === 'popularity') {
-      sortParams = '&orderby=popularity&order=desc'; // Orders by review rating/sales
+    } else if (sortOption === 'rating') {
+      sortParams = '&orderby=rating&order=desc'; // Orders by average reviews in Dokan
     } else if (sortOption === 'rand') {
-      sortParams = '&orderby=rand'; // Random sorting
+      sortParams = '&orderby=rand'; // Handled by WP SQL filter
     }
     
     const searchParam = searchString ? `&search=${searchString}` : '';
-    const url = `${BASE_URL}/wp-json/dokan/v1/stores?per_page=15&page=${targetPage}${searchParam}`;
+    
+    // BUG FIX: Appended ${sortParams} dynamically to the end of the query URL string!
+    const url = `${BASE_URL}/wp-json/dokan/v1/stores?per_page=15&page=${targetPage}${searchParam}${sortParams}`;
 
-      return fetch(url)
-        .then((res) => {
-          if (!res.ok) throw new Error('Failed to retrieve vendors');
-          
-          // Read total pages headers dynamically
-          const totalPagesHeader = res.headers.get('X-WP-TotalPages') || res.headers.get('x-wp-totalpages');
-          if (totalPagesHeader) {
-            const totalPages = parseInt(totalPagesHeader, 10);
-            setHasMore(targetPage < totalPages);
-          }
-          return res.json();
-        })
-        .then((raw: any[]) => {
-          const formatted: Vendor[] = raw.map((v) => ({
-            id: v.id.toString(),
-            name: v.store_name || "Unknown Vendor",
-            address: v.address?.street_1 || "No physical address listed",
-            city: v.address?.city || "No City",
-            banner: v.banner || null,
-            gravatar: v.gravatar || null,
-          }));
+    return fetch(url)
+      .then((res) => {
+        if (!res.ok) throw new Error('Failed to retrieve vendors');
+        
+        const totalPagesHeader = res.headers.get('X-WP-TotalPages') || res.headers.get('x-wp-totalpages');
+        if (totalPagesHeader) {
+          const totalPages = parseInt(totalPagesHeader, 10);
+          setHasMore(targetPage < totalPages);
+        }
+        return res.json();
+      })
+      .then((raw: any[]) => {
+        const formatted: Vendor[] = raw.map((v) => ({
+          id: v.id.toString(),
+          name: v.store_name || "Unknown Vendor",
+          address: v.address?.street_1 || "No physical address listed",
+          city: v.address?.city || "No City",
+          banner: v.banner || null,
+          gravatar: v.gravatar || null,
+        }));
 
-          if (isRefresh || targetPage === 1) {
-            setVendors(formatted);
-          } else {
-            // Append new page to previous state list
-            setVendors((prev) => {
-              const existingIds = new Set(prev.map(v => v.id));
-              const uniqueNew = formatted.filter(v => !existingIds.has(v.id));
-              return [...prev, ...uniqueNew];
-            });
-          }
+        if (isRefresh || targetPage === 1) {
+          setVendors(formatted);
+        } else {
+          setVendors((prev) => {
+            const existingIds = new Set(prev.map(v => v.id));
+            const uniqueNew = formatted.filter(v => !existingIds.has(v.id));
+            return [...prev, ...uniqueNew];
+          });
+        }
 
-          // Fallback: If we got fewer items than requested per page, we've reached the end
-          if (raw.length < 15) {
-            setHasMore(false);
-          }
-        })
-        .catch((err) => {
-          console.error('[Dokan Fetch Error]:', err);
-          setError(err.message);
+        if (raw.length < 15) {
+          setHasMore(false);
+        }
+      })
+      .catch((err) => {
+        console.error('[Dokan Fetch Error]:', err);
+        setError(err.message);
       });
   };
 
@@ -117,15 +113,13 @@ export default function VendorsScreen({ onNavigate, onSelectVendor }: VendorsScr
 
   // ─── 3. Server-Side Debounced Searching ──────────────────────────────────
   useEffect(() => {
-    // Only run debounce routine after initial loading is complete
     if (loading && page === 1 && vendors.length === 0) return;
 
-    // Wait 500ms after user stops typing to trigger server query (prevents lag)
     const delayDebounceFn = setTimeout(() => {
       setLoading(true);
       setPage(1);
       setHasMore(true);
-      fetchVendors(1, searchQuery).finally(() => setLoading(false));
+      fetchVendors(1, searchQuery, sortBy).finally(() => setLoading(false));
     }, 500);
 
     return () => clearTimeout(delayDebounceFn);
@@ -164,17 +158,63 @@ export default function VendorsScreen({ onNavigate, onSelectVendor }: VendorsScr
         <CartButton onPress={() => onNavigate("Cart")} />
       </View>
 
-      {/* Filter & Search Bar Row */}
-      
-      <SearchFilterRow 
-        placeholderText="Search for vendors..."
-        searchQuery={searchQuery}
-        onChangeSearch={setSearchQuery}
-        onSelectSort={(sortByOption, labelOption) => {
-          setSortBy(sortByOption);
-          setSortLabel(labelOption);
-        }}
-      />
+      {/* ─── 6. Dedicated Inline Search & Filter Row ─── */}
+      <View style={styles.searchRow}>
+        
+        {/* Localized Dokan Vendor Filter Menu */}
+        <Menu
+          visible={menuVisible}
+          onDismiss={() => setMenuVisible(false)}
+          anchor={
+            <TouchableOpacity 
+              style={styles.filterBtn}
+              onPress={() => setMenuVisible(true)}
+              activeOpacity={0.7}
+            >
+              <Icon source="filter-variant" size={28} color={C.text} />
+            </TouchableOpacity>
+          }
+        >
+          <Menu.Item 
+            onPress={() => {
+              setSortBy('registered');
+              setSortLabel('Most Recent');
+              setMenuVisible(false);
+            }} 
+            title="Most Recent" 
+          />
+          <Menu.Item 
+            onPress={() => {
+              setSortBy('rating');
+              setSortLabel('Most Popular');
+              setMenuVisible(false);
+            }} 
+            title="Most Popular" 
+          />
+          <Menu.Item 
+            onPress={() => {
+              setSortBy('rand');
+              setSortLabel('Random');
+              setMenuVisible(false);
+            }} 
+            title="Random" 
+          />
+        </Menu>
+
+        {/* Custom Styled Search Input Box */}
+        <View style={styles.searchBarContainer}>
+          <View style={styles.searchBarInputRow}>
+            <Icon source="magnify" size={20} color={C.subtext} />
+            <TextInput
+              placeholder="Search for vendors..."
+              placeholderTextColor={C.subtext}
+              style={styles.textInput}
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+            />
+          </View>
+        </View>
+      </View>
 
       {/* Main List Layout States */}
       {loading && page === 1 ? (
@@ -202,21 +242,17 @@ export default function VendorsScreen({ onNavigate, onSelectVendor }: VendorsScr
             <VendorCard 
               vendor={item}
               onPress={() => {
-                onSelectVendor(item);      
-                onNavigate("VendorInfo"); 
+                onNavigate("VendorInfo", item); 
               }} 
             />
           )}
 
-          // Pull to Refresh configuration
           refreshing={refreshing}
           onRefresh={handleRefresh}
 
-          // Infinite Scroll configuration
           onEndReached={handleLoadMore}
-          onEndReachedThreshold={0.4} // Trigger load when user scrolls 40% close to the bottom
+          onEndReachedThreshold={0.4} 
           
-          // Show small loading spinner at the list footer during next-page queries
           ListFooterComponent={
             loadingMore ? (
               <View style={{ paddingVertical: 20 }}>
@@ -242,14 +278,37 @@ const styles = StyleSheet.create({
     backgroundColor: C.surface,
   },
   headerTitle: { fontSize: 20, fontWeight: '700', color: C.text },
+  
+  // ─── LOCALIZED SEARCH ROW STYLES ───
   searchRow: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 16,
     paddingVertical: 12,
     gap: 16,
+    zIndex: 9999, // Floating Menu Touch Priority Fix
+    position: 'relative',
   },
   filterBtn: { padding: 4 },
+  searchBarContainer: {
+    flex: 1,
+    height: 50,
+  },
+  searchBarInputRow: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: C.white,
+    borderRadius: 24,
+    paddingHorizontal: 15,
+  },
+  textInput: {
+    flex: 1,
+    marginLeft: 10,
+    fontSize: 16,
+    color: C.text,
+  },
+  
   listContent: {
     paddingHorizontal: 16,
     paddingBottom: 40,

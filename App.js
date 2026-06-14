@@ -9,80 +9,204 @@ import ProductDetailsScreen from "./screens/ProductDetailsScreen";
 import CartScreen from "./screens/CartScreen";
 import CheckoutScreen from "./screens/CheckoutScreen";
 import OrderConfirmationScreen from "./screens/OrderConfirmationScreen";
-import VendorsScreen, { Vendor } from './screens/VendorsScreen'; // Imported Vendor interface
+import VendorsScreen from './screens/VendorsScreen'; 
 import CategoriesScreen from './screens/CategoriesScreen';
 import VendorInfoScreen from './screens/VendorInfoScreen';
+import ProductArchiveScreen from './screens/ProductArchiveScreen';
 import ProfileScreen from './screens/ProfileScreen';
 import EditProfileScreen from './screens/EditProfileScreen';
 import AuthScreen from './screens/AuthScreen';
 
 import BottomNav from "./components/BottomNav";
 
-const screensWithoutBottomNav = ["Cart", "Checkout", "OrderConfirmation", "EditProfile", "Auth", "VendorInfoScreen"];
+const screensWithoutBottomNav = ["Cart", "Checkout", "OrderConfirmation", "EditProfile", "Auth"];
 
 export default function App() {
-  // 1. All state hooks are now declared correctly inside the component body
-  const [activeTab, setActiveTab] = useState("Home");
-  const [selectedVendor, setSelectedVendor] = useState(null); 
+  // 1. Single source of truth for all routing, parameters, and history stacks
+  const [history, setHistory] = useState([{ screen: "Home", params: null }]);
 
-  // 2. Render screen using the unified routing state (activeTab)
+  // 2. Dynamically calculate active tabs and params (prevents out-of-sync loops)
+  const currentRoute = history[history.length - 1];
+  const activeTab = currentRoute.screen;
+  const params = currentRoute.params;
+
+  // Cart States (Global Marketplace Basket)
+  const [cartItems, setCartItems] = useState([]);  
+
+  const [currentUser, setCurrentUser] = useState(null);
+
+  // Navigation Forward (Push)
+  const navigateTo = (screen, params = null) => {
+    setHistory((prev) => [...prev, { screen, params }]); // Shorthand for { screen: screen, params: params }
+  };
+
+  // Navigation Backward (Pop)
+  const navigateBack = () => {
+    setHistory((prev) => {
+      if (prev.length <= 1) return [{ screen: "Home", params: null }]; // Don't pop past Home
+      const updated = [...prev];
+      updated.pop(); // Safely pop the top screen off the stack
+      return updated;
+    });
+  };
+
   const renderScreen = () => {
     switch (activeTab) {
       case "Home":
-        return <HomeScreen onNavigate={(screen) => setActiveTab(screen)} />;
+        return null; // Handled by permanent background mount
       case "ProductDetails":
-        return <ProductDetailsScreen onNavigate={(screen) => setActiveTab(screen)} />;
+        return (
+          <ProductDetailsScreen 
+            product={params} 
+            onNavigate={navigateTo} 
+            onGoBack={navigateBack} 
+            onAddToCart={addToCart}
+            cartItems={cartItems}
+          />
+        );
       case "Categories":
-        return <CategoriesScreen onNavigate={(screen) => setActiveTab(screen)} />;
+        return <CategoriesScreen onNavigate={navigateTo} />;
       case "Cart":
-        return <CartScreen onNavigate={(screen) => setActiveTab(screen)} />;
+        return (
+          <CartScreen 
+            cartItems={cartItems}
+            onUpdateQty={updateCartQty}
+            onRemoveItem={removeFromCart}
+            onClearCart={clearCart}
+            onNavigate={navigateTo} 
+            onGoBack={navigateBack}
+          />
+        );
       case "Checkout":
-        return <CheckoutScreen onNavigate={(screen) => setActiveTab(screen)} />;
+        return (
+          <CheckoutScreen 
+            routeParams={params} 
+            currentUser={currentUser} // Pass active user state down
+            onNavigate={navigateTo} 
+            onLoginSuccess={(user) => setCurrentUser(user)} // Pass setter down
+          />
+        );
       case "OrderConfirmation":
-        return <OrderConfirmationScreen onNavigate={(screen) => setActiveTab(screen)} />;
-      
-      // 3. Render VendorsScreen inside the case path and pass down the active vendor setter
+        return (
+          <OrderConfirmationScreen 
+            order={params}
+            onNavigate={navigateTo} 
+          />
+        );
       case "Vendors":
         return (
           <VendorsScreen 
-            onNavigate={(screen) => setActiveTab(screen)}
-            onSelectVendor={(vendor) => setSelectedVendor(vendor)}
+            onNavigate={navigateTo}
           />
         );
-      
-      // 4. Render VendorInfoScreen with the saved vendor data object
       case "VendorInfo":
         return (
           <VendorInfoScreen 
-            vendor={selectedVendor} 
-            onNavigate={(screen) => setActiveTab(screen)}
+            vendor={params} 
+            onNavigate={navigateTo}
+            onGoBack={navigateBack}
           />
         );
-        
+      case "ProductArchive":
+        return (
+          <ProductArchiveScreen 
+            archiveParam={params} 
+            onNavigate={navigateTo}
+            onGoBack={navigateBack}
+          />
+        );
       case "Profile":
-        return <ProfileScreen onNavigate={(screen) => setActiveTab(screen)} />;
+        return (
+          <ProfileScreen 
+            currentUser={currentUser} 
+            onNavigate={navigateTo} 
+            onLogout={() => {
+              // Clear session and return to Home
+              setCurrentUser(null);
+              setHistory([{ screen: "Home", params: null }]);
+            }}
+          />
+        );
       case "EditProfile":
-        return <EditProfileScreen onNavigate={(screen) => setActiveTab(screen)} />;
+        return (
+          <EditProfileScreen 
+            routeParams={params} // Holds { mode: 'personal' | 'address' }
+            currentUser={currentUser} // Pass the active logged-in customer down
+            onNavigate={navigateTo} 
+            onProfileUpdate={(updatedUser) => setCurrentUser(updatedUser)} // Pass state updater down
+          />
+        );
       case "Auth":
-        return <AuthScreen onNavigate={(screen) => setActiveTab(screen)} />;
+        return (
+          <AuthScreen 
+            onNavigate={navigateTo} 
+            onLoginSuccess={(customer) => {
+              setCurrentUser(customer); // Save resolved customer profile
+              setHistory([{ screen: "Profile", params: null }]); // Redirect instantly to Profile
+            }}
+          />
+        );
       default:
-        return <HomeScreen onNavigate={(screen) => setActiveTab(screen)} />;
+        return <HomeScreen onNavigate={navigateTo} />;
     }
   };
+
+  // ─── Global Basket State Handlers ───
+  const addToCart = (product, qty) => {
+    setCartItems((prev) => {
+      const existingIndex = prev.findIndex((item) => item.id === product.id);
+      if (existingIndex > -1) {
+        const updated = [...prev];
+        updated[existingIndex].qty += qty;
+        return updated;
+      } else {
+        return [...prev, { ...product, qty }];
+      }
+    });
+  };
+
+  const updateCartQty = (id, delta) => {
+    setCartItems((prev) =>
+      prev.map((item) =>
+        item.id === id ? { ...item, qty: Math.max(1, item.qty + delta) } : item
+      )
+    );
+  };
+
+  const removeFromCart = (id) => {
+    setCartItems((prev) => prev.filter((item) => item.id !== id));
+  };
+
+  const clearCart = () => setCartItems([]);
 
   return (
     <SafeAreaProvider>
       <PaperProvider>
         <View style={styles.appContainer}>
           <View style={styles.mainContentWindow}>
-            {renderScreen()}
+            
+            {/* Permanent background mount for Home screen */}
+            <View style={activeTab !== "Home" ? { display: "none", height: 0, width: 0 } : { flex: 1 }}>
+              <HomeScreen 
+                onNavigate={navigateTo} 
+              />
+            </View>
+
+            {activeTab !== "Home" && renderScreen()}
           </View>
 
-          {/* Render BottomNav only if the activeTab is not in the hidden list */}
+          {/* BottomNav */}
           {!screensWithoutBottomNav.includes(activeTab) && (
             <BottomNav 
               activeTab={activeTab} 
-              onTabPress={(tabName) => setActiveTab(tabName)} 
+              onTabPress={(tabName) => {
+                // If user taps Profile and is NOT logged in, redirect them to Auth!
+                if (tabName === "Profile" && !currentUser) {
+                  navigateTo("Auth");
+                } else {
+                  setHistory([{ screen: tabName, params: null }]);
+                }
+              }} 
             />
           )}
           
@@ -93,11 +217,6 @@ export default function App() {
 }
 
 const styles = StyleSheet.create({
-  appContainer: {
-    flex: 1,
-    backgroundColor: C.bg,
-  },
-  mainContentWindow: {
-    flex: 1, // Forces the screen content window to fill all available space above the navbar
-  }
+  appContainer: { flex: 1, backgroundColor: C.bg },
+  mainContentWindow: { flex: 1 }
 });

@@ -1,44 +1,103 @@
-import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator } from 'react-native';
 import { C } from '../styles/theme';
 import { Icon } from 'react-native-paper';
+import { Image } from 'expo-image';
+import { fetchWooCommerce } from '../services/wooApi';
+import { decodeHTMLEntities } from '../utils/stringUtils'; // Import decoder
 
-// 1. Removed the color requirement since we are using a global theme color
-interface Category {
+interface WooCommerceCategory {
   id: number;
-  label: string;
-  icon: string;
+  name: string;
+  slug: string;
+  image?: { src: string } | null;
 }
 
-// 2. Cleaned up the data array
-const CATEGORIES: Category[] = [
-  { id: 1, label: "Fashion", icon: "tshirt-crew" },
-  { id: 2, label: "Home Products", icon: "home" },
-  { id: 3, label: "Services", icon: "room-service" },
-  { id: 4, label: "Accessories", icon: "cellphone" },
-  { id: 5, label: "Tv & Audio", icon: "television" },
-];
+interface CategoryCirclesProps {
+  onPressCategory: (id: number, name: string) => void;
+}
 
-export default function CategoryCircles() {
+// Fallback helper to map standard category slugs to icons if no image is uploaded
+const getIconForCategory = (slug: string): string => {
+  switch (slug) {
+    case 'fashion':           return 'tshirt-crew';
+    case 'others':            return 'folder-outline';
+    case 'computing':         return 'laptop';
+    case 'home-products':     return 'home-outline';
+    case 'services':          return 'room-service-outline';
+    case 'fashion-accessories': return 'cellphone';
+    default:                  return 'tag-outline'; // Generic fallback tag icon
+  }
+};
+
+export default function CategoryCircles({ onPressCategory }: CategoryCirclesProps) {
+  const [categories, setCategories] = useState<WooCommerceCategory[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    // Queries only top-level parent categories (parent=0)
+    fetchWooCommerce('products/categories?parent=0')
+      .then((raw: any[]) => {
+        const formatted = raw.map((c) => ({
+          id: c.id,
+          name: decodeHTMLEntities(c.name), // Decodes special HTML characters
+          slug: c.slug,
+          image: c.image ? { src: c.image.src } : null,
+        }));
+        setCategories(formatted);
+      })
+      .catch((err) => {
+        console.error('[CategoryCircles Fetch Error]:', err);
+      })
+      .finally(() => setLoading(false));
+  }, []);
+
+  if (loading) {
+    return (
+      <View style={{ paddingVertical: 20, alignItems: 'center' }}>
+        <ActivityIndicator size="small" color={C.primary} />
+      </View>
+    );
+  }
+
+  if (categories.length === 0) return null;
+
   return (
     <ScrollView 
       horizontal 
       showsHorizontalScrollIndicator={false}
       contentContainerStyle={styles.scrollContainer}
     >
-      {CATEGORIES.map((cat) => (
-        <TouchableOpacity key={cat.id} style={styles.categoryItem} activeOpacity={0.8}>
-          
-          {/* 3. Reverted back to your global C.primary color */}
-          <View style={[styles.categoryCircle, { backgroundColor: C.primary }]}>
-            <Icon source={cat.icon} size={28} color={C.surface} />
-          </View>
-          
-          <Text style={styles.categoryLabel} numberOfLines={2}>
-            {cat.label}
-          </Text>
-        </TouchableOpacity>
-      ))}
+      {categories.map((cat) => {
+        const hasImage = cat.image?.src;
+
+        return (
+          <TouchableOpacity 
+            key={cat.id} 
+            style={styles.categoryItem} 
+            activeOpacity={0.8}
+            onPress={() => onPressCategory(cat.id, cat.name)} // Triggers dynamic navigation
+          >
+            <View style={[styles.categoryCircle, { backgroundColor: C.primary }]}>
+              {hasImage ? (
+                // 1. If category image exists, render it beautifully inside the circle
+                <Image 
+                  source={{ uri: cat.image!.src }} 
+                  style={styles.categoryCircleImage} 
+                  contentFit="cover"
+                />
+              ) : (
+                // 2. Fallback to vector icon if no image is uploaded
+                <Icon source={getIconForCategory(cat.slug)} size={28} color={C.surface} />
+              )}
+            </View>
+            
+            <Text style={styles.categoryLabel} numberOfLines={2}>
+              {cat.name}
+            </Text>
+          </TouchableOpacity>
+        );
+      })}
     </ScrollView>
   );
 }
@@ -60,6 +119,12 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     marginBottom: 8,
+    overflow: 'hidden', // Ensures images stay strictly circular
+  },
+  categoryCircleImage: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 30,
   },
   categoryLabel: {
     fontSize: 12,

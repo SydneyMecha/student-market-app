@@ -1,200 +1,305 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   ScrollView,
   TouchableOpacity,
-  Image,
   TextInput,
+  ActivityIndicator,
+  KeyboardAvoidingView,
+  Platform,
 } from "react-native";
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Icon } from 'react-native-paper';
+import { Image } from 'expo-image';
 import { C, globalStyles } from '../styles/theme';
-import { PRODUCTS } from '../types';
+import { fetchWooCommerce } from '../services/wooApi';
+import { adaptWooProductToUI } from '../utils/adapters';
+import CartButton from '../components/CartButton';
 import ProductSection from '../components/ProductSection';
 
-const RECOMMENDATIONS = [1, 2, 3, 4];
-
 interface CartScreenProps {
-  onNavigate: (screenName: string) => void;
+  cartItems: any[];
+  onUpdateQty: (id: number, delta: number) => void;
+  onRemoveItem: (id: number) => void;
+  onClearCart: () => void;
+  onNavigate: (screenName: string, params?: any) => void;
+  onGoBack: () => void;
 }
 
-export default function CartScreen({ onNavigate }: CartScreenProps) {
-    const [cartItems, setCartItems] = useState([
-        { ...PRODUCTS[0], qty: 1 },
-        { ...PRODUCTS[1], qty: 1 },
-        { ...PRODUCTS[2], qty: 2 }
-    ]);
+export default function CartScreen({ 
+  cartItems, 
+  onUpdateQty, 
+  onRemoveItem, 
+  onClearCart, 
+  onNavigate, 
+  onGoBack 
+}: CartScreenProps) {
+  const [recommendations, setRecommendations] = useState<any[]>([]);
+  const [loadingRecs, setLoadingRecs] = useState(true);
 
-  // Helper actions to manipulate checkout counts
-  const updateQty = (id: number, delta: number) => {
-    setCartItems(prev =>
-      prev.map(item =>
-        item.id === id ? { ...item, qty: Math.max(1, item.qty + delta) } : item
-      )
-    );
-  };
+  // Coupon States
+  const [couponCode, setCouponCode] = useState('');
+  const [discountAmount, setDiscountAmount] = useState(0);
+  const [applyingCoupon, setApplyingCoupon] = useState(false);
+  const [couponError, setCouponError] = useState<string | null>(null);
+  const [couponSuccess, setCouponSuccess] = useState<string | null>(null);
 
-  const removeItem = (id: number) => {
-    setCartItems(prev => prev.filter(item => item.id !== id));
-  };
+  useEffect(() => {
+    fetchWooCommerce('products?per_page=4')
+      .then((raw) => {
+        setRecommendations(raw.map(adaptWooProductToUI));
+      })
+      .catch((err) => console.error('[Cart Recommendations Error]:', err))
+      .finally(() => setLoadingRecs(false));
+  }, []);
 
-  // Dynamic calculations for the Order Summary box
   const subtotal = cartItems.reduce(
     (sum, item) => sum + Number(item.price) * item.qty,
     0
   );
-  const discount = 0;
+
+  // 1. Dynamic WooCommerce REST API Coupon Validator
+  const handleApplyCoupon = () => {
+    const cleanedCode = couponCode.trim().toLowerCase(); // WC queries codes in lowercase
+    if (!cleanedCode) return;
+
+    setApplyingCoupon(true);
+    setCouponError(null);
+    setCouponSuccess(null);
+
+    // Query WooCommerce coupons database directly
+    fetchWooCommerce(`coupons?code=${cleanedCode}`)
+      .then((raw: any[]) => {
+        if (raw.length === 0) {
+          setCouponError("Invalid coupon code");
+          setDiscountAmount(0);
+          return;
+        }
+
+        const coupon = raw[0];
+        const minAmount = parseFloat(coupon.minimum_amount || "0");
+
+        // Validate minimum spend threshold
+        if (subtotal < minAmount) {
+          setCouponError(`Minimum spend is Ksh ${minAmount.toLocaleString()}`);
+          setDiscountAmount(0);
+          return;
+        }
+
+        const amount = parseFloat(coupon.amount || "0");
+        const discountType = coupon.discount_type;
+
+        // Calculate discount dynamically based on WooCommerce rules
+        let calculatedDiscount = 0;
+        if (discountType === 'percent') {
+          calculatedDiscount = subtotal * (amount / 100); // e.g. 10% off
+        } else {
+          calculatedDiscount = Math.min(amount, subtotal); // e.g. flat Ksh discount
+        }
+
+        setDiscountAmount(calculatedDiscount);
+        setCouponSuccess(`Coupon applied: -Ksh ${calculatedDiscount.toLocaleString()}`);
+      })
+      .catch((err) => {
+        console.error('[WooCommerce Coupon Error]:', err);
+        setCouponError("Failed to apply coupon");
+        setDiscountAmount(0);
+      })
+      .finally(() => setApplyingCoupon(false));
+  };
+
+  // Re-calculate coupon discount if the subtotal changes (qty modified)
+  useEffect(() => {
+    if (couponSuccess && couponCode) {
+      handleApplyCoupon();
+    }
+  }, [subtotal]);
+
   const shipping = 0;
-  const total = subtotal - discount + shipping;
+  const total = Math.max(0, subtotal - discountAmount + shipping);
 
   return (
     <SafeAreaView style={styles.safeArea} edges={["top"]}>
       
-        {/* 1. Top Navigation Bar */}
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        style={{ flex: 1 }}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
+      >
+      
+        {/* Top Navigation Bar */}
         <View style={globalStyles.headerRow}>
-            <TouchableOpacity style={globalStyles.iconBtn}>
+            <TouchableOpacity style={globalStyles.iconBtn} onPress={onGoBack}>
                 <Icon source="chevron-left" size={28} color={C.text} />
             </TouchableOpacity>
 
             <Text style={globalStyles.headerTitle}>Cart</Text>
             
-            <TouchableOpacity style={globalStyles.iconBtn} onPress={() => setCartItems([])}>
+            <TouchableOpacity style={globalStyles.iconBtn} onPress={onClearCart}>
                 <Icon source="trash-can-outline" size={24} color={C.text} />
             </TouchableOpacity>
         </View>
 
-        {/* 2. Scrollable Body Content */}
+        {/* Scrollable Body Content */}
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
             
             {/* Item List */}
             <View style={styles.itemsWrapper}>
-            {cartItems.map((item) => (
-                <View key={item.id} style={styles.cartCard}>
-                
-                {/* Product Image Placeholder */}
-                    <TouchableOpacity
-                        onPress={() => console.log("Navigate to Product details for id:", item.id)}
-                        activeOpacity={0.7}
-                    >
-                        <View style={styles.productImagePlaceholder}>
-                            {item.images && item.images.length > 0 ? (
-                                <Image 
-                                source={{ uri: item.images[0].src }} 
-                                style={styles.cartItemImage} 
-                                />
-                            ) : (
-                                <Icon source="image-outline" size={24} color="C.charcoal" />
-                            )}
-                        </View>                        
-                    </TouchableOpacity>
+            {cartItems.map((item) => {
+                const img = item.images[0]?.src || null;
+                return (
+                  <View key={item.id} style={styles.cartCard}>
+                      <TouchableOpacity onPress={() => onNavigate("ProductDetails", item)} activeOpacity={0.7}>
+                          <View style={styles.productImagePlaceholder}>
+                              {img ? (
+                                  <Image source={{ uri: img }} style={styles.cartItemImage} contentFit="cover" />
+                              ) : (
+                                  <Icon source="image-outline" size={24} color={C.subtext} />
+                              )}
+                          </View>                        
+                      </TouchableOpacity>
 
-                {/* Product Main Details */}
-                <View style={styles.productMainDetailsButton}>
-                   <Text style={styles.productName} numberOfLines={1}>{item.name}</Text>
-                    <Text style={styles.categoryBadgeText}>{item.category}</Text>
-                    <TouchableOpacity 
-                        onPress={() => console.log("Navigate to Vendor Storefront: Sydney's Closet")}
-                        activeOpacity={0.6}
-                        style={styles.storeHitbox}
-                        >
-                        <Text style={styles.storeText}>
-                            Store: <Text style={styles.storeName}>Sydney's Closet</Text>
-                        </Text>
-                    </TouchableOpacity>
+                      <View style={styles.productMainDetailsButton}>
+                        <Text style={styles.productName} numberOfLines={1}>{item.name}</Text>
+                        
+                        {item.categories.length > 0 && (
+                          <Text style={styles.categoryBadgeText}>
+                            {item.categories.map((c: any) => c.name).join(', ')}
+                          </Text>
+                        )}
+                        
+                        {item.store && (
+                          <TouchableOpacity onPress={() => onNavigate("VendorInfo", item.store)} activeOpacity={0.6} style={styles.storeHitbox}>
+                              <Text style={styles.storeText}>
+                                  Store: <Text style={styles.storeName}>{item.store.name}</Text>
+                              </Text>
+                          </TouchableOpacity>
+                        )}
 
-                    <Text style={styles.priceText}>
+                        <Text style={styles.priceText}>
                             Ksh {parseFloat(item.price).toLocaleString('en-US')}
-                    </Text>
-                    <View style={styles.actionRow}>
-                        <View style={styles.counterBox}>
-                            <TouchableOpacity onPress={() => updateQty(item.id, -1)}>
-                                <Icon source="minus-circle-outline" size={22} color={C.subtext} />
-                            </TouchableOpacity>
-                            {/* Fallback count handling if your backend objects don't contain a mutable count key */}
-                            <Text style={styles.counterValue}>{item.qty || 1}</Text>
-                            <TouchableOpacity onPress={() => updateQty(item.id, 1)}>
-                                <Icon source="plus-circle-outline" size={22} color={C.subtext} />
+                        </Text>
+                        
+                        <View style={styles.actionRow}>
+                            <View style={styles.counterBox}>
+                                <TouchableOpacity onPress={() => onUpdateQty(item.id, -1)}>
+                                    <Icon source="minus-circle-outline" size={22} color={C.subtext} />
+                                </TouchableOpacity>
+                                <Text style={styles.counterValue}>{item.qty || 1}</Text>
+                                <TouchableOpacity onPress={() => onUpdateQty(item.id, 1)}>
+                                    <Icon source="plus-circle-outline" size={22} color={C.subtext} />
+                                </TouchableOpacity>
+                            </View>
+
+                            <TouchableOpacity onPress={() => onRemoveItem(item.id)} style={styles.itemDeleteBtn}>
+                                <Icon source="trash-can-outline" size={20} color={C.subtext} />
                             </TouchableOpacity>
                         </View>
-
-                        <TouchableOpacity onPress={() => removeItem(item.id)} style={styles.itemDeleteBtn}>
-                            <Icon source="trash-can-outline" size={20} color={C.subtext} />
-                        </TouchableOpacity>
-                    </View>
-                </View>
-                
-
-                </View>
-            ))}
+                      </View>
+                  </View>
+                );
+            })}
             
             {cartItems.length === 0 && (
                 <Text style={styles.emptyText}>Your shopping basket is empty</Text>
             )}
             </View>
 
-            {/* Horizontal Upsell Product Recommendations */}
-            <ProductSection 
-            title="Products you may like" 
-            products={PRODUCTS} 
-            showViewMore={false}
-            />
+            {/* Recommendations */}
+            {loadingRecs ? (
+              <ActivityIndicator size="small" color={C.primary} style={{ marginVertical: 24 }} />
+            ) : recommendations.length > 0 ? (
+              <ProductSection 
+                title="Products you may like" 
+                products={recommendations} 
+                showViewMore={false}
+                onPressProduct={(p) => onNavigate("ProductDetails", p)}
+              />
+            ) : null}
 
         </ScrollView>
 
-        {/* Sticky Footing */}
+        {/* Sticky Footing Summary */}
         <View style={styles.stickyBottomBar}>
             <View>
                 <Text style={styles.summaryTitle}>Order Summary</Text>
 
-                {/* Coupon Code Input Box */}
+                {/* Coupon Input Box */}
                 <View style={styles.couponContainer}>
                     <Icon source="ticket-percent-outline" size={20} color={C.subtext} />
                     <TextInput
                         placeholder="Coupon code"
                         placeholderTextColor={C.subtext}
                         style={styles.couponInput}
+                        value={couponCode}
+                        onChangeText={(text) => {
+                          setCouponCode(text);
+                          // Clear statuses when user is re-typing
+                          setCouponError(null);
+                          setCouponSuccess(null);
+                        }}
+                        autoCapitalize="characters"
                     />
-                    <Icon source="chevron-right" size={20} color={C.subtext} />
+                    
+                    {/* Render a spinner while calling WooCommerce REST API */}
+                    <TouchableOpacity onPress={handleApplyCoupon} style={{ padding: 4 }}>
+                      {applyingCoupon ? (
+                        <ActivityIndicator size="small" color={C.primary} />
+                      ) : (
+                        <Icon source="chevron-right" size={24} color={C.primary} />
+                      )}
+                    </TouchableOpacity>
                 </View>
+
+                {/* 2. Interactive Status Messages below the coupon input */}
+                {couponError && <Text style={styles.couponErrorText}>{couponError}</Text>}
+                {couponSuccess && <Text style={styles.couponSuccessText}>{couponSuccess}</Text>}
 
                 {/* Pricing Ledger Rows */}
                 <View style={styles.summaryLedger}>
                     <View style={styles.ledgerRow}>
-                    <Text style={styles.ledgerLabel}>Subtotal</Text>
-                    <Text style={styles.ledgerValue}>Ksh {subtotal.toLocaleString()}</Text>
+                      <Text style={styles.ledgerLabel}>Subtotal</Text>
+                      <Text style={styles.ledgerValue}>Ksh {subtotal.toLocaleString()}</Text>
                     </View>
                     <View style={styles.ledgerRow}>
-                    <Text style={styles.ledgerLabel}>Discount</Text>
-                    <Text style={styles.ledgerValue}>Ksh {discount.toLocaleString()}</Text>
+                      <Text style={styles.ledgerLabel}>Discount</Text>
+                      <Text style={[styles.ledgerValue, discountAmount > 0 && { color: C.accent }]}>
+                        - Ksh {discountAmount.toLocaleString()}
+                      </Text>
                     </View>
                     <View style={styles.ledgerRow}>
-                    <Text style={styles.ledgerLabel}>Shipping</Text>
-                    <Text style={styles.ledgerValue}>Ksh {shipping.toLocaleString()}</Text>
+                      <Text style={styles.ledgerLabel}>Shipping</Text>
+                      <Text style={styles.ledgerValue}>Ksh {shipping.toLocaleString()}</Text>
                     </View>
                     
                     <View style={styles.summaryDivider} />
 
                     <View style={styles.ledgerRow}>
-                    <Text style={styles.totalLabel}>Total</Text>
-                    <Text style={styles.totalValue}>Ksh {total.toLocaleString()}</Text>
+                      <Text style={styles.totalLabel}>Total</Text>
+                      <Text style={styles.totalValue}>Ksh {total.toLocaleString()}</Text>
                     </View>
                 </View>
             </View>
 
-            <TouchableOpacity style={styles.checkoutBtn} activeOpacity={0.9} onPress={() => onNavigate('Checkout')}>
+            <TouchableOpacity 
+              activeOpacity={0.9} 
+              onPress={() => onNavigate('Checkout', { subtotal, discountAmount: discountAmount, total, cartItems })} // Passes data forward
+              disabled={cartItems.length === 0} 
+              style={[styles.checkoutBtn, cartItems.length === 0 && { backgroundColor: C.lightGray }]}
+            >
                 <Text style={styles.checkoutBtnText}>Checkout</Text>
             </TouchableOpacity>
         </View>
 
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
     safeArea: { flex: 1, backgroundColor: C.bg },
-    
     scrollContent: { paddingBottom: 40 },
     cartCard: {
         backgroundColor: C.white, 
@@ -203,6 +308,7 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         flexDirection: 'row',
         gap: 24,
+        marginBottom: 24
     },
     productMainDetailsButton: {
         flex: 1,
@@ -218,7 +324,6 @@ const styles = StyleSheet.create({
     cartItemImage: {
         width: '100%',
         height: '100%',
-        resizeMode: 'cover',
     },
     categoryBadgeText: {
         fontSize: 12,
@@ -260,10 +365,26 @@ const styles = StyleSheet.create({
         marginHorizontal: 16,
         paddingHorizontal: 12,
         height: 46,
-        marginBottom: 16,
+        marginBottom: 8, // Slightly smaller margin to leave room for error text
     },
     couponInput: { flex: 1, marginLeft: 8, fontSize: 14, color: C.text },
     
+    // Status text styles
+    couponErrorText: {
+      color: '#EF4444', // Red text
+      fontSize: 12,
+      fontWeight: '600',
+      paddingHorizontal: 16,
+      marginBottom: 12,
+    },
+    couponSuccessText: {
+      color: C.accent, // Dynamic theme accent green text
+      fontSize: 12,
+      fontWeight: '600',
+      paddingHorizontal: 16,
+      marginBottom: 12,
+    },
+
     summaryLedger: { paddingHorizontal: 16, gap: 12 },
     ledgerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
     ledgerLabel: { fontSize: 13, color: C.subtext },
@@ -273,8 +394,6 @@ const styles = StyleSheet.create({
     totalValue: { fontSize: 16, fontWeight: '700', color: C.text },
 
     stickyBottomBar: {
-        // position: 'absolute',
-        // bottom: 0, left: 0, right: 0,
         backgroundColor: C.white,
         gap: 16,
         padding: 16,

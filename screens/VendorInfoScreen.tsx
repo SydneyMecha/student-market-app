@@ -7,8 +7,7 @@ import {
   TouchableOpacity,
   ImageBackground,
   ActivityIndicator,
-  RefreshControl, // 1. Import RefreshControl
-  TextInput,
+  RefreshControl,
 } from "react-native";
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Icon } from 'react-native-paper';
@@ -19,65 +18,65 @@ import { Vendor } from './VendorsScreen';
 
 import CartButton from '../components/CartButton';
 import ProductCard from '../components/ProductCard';
+import SearchFilterRow from '../components/SearchFilterRow'; // Imported your new modular row
 
-function SearchBar({
-  placeholderText,
-  value,
-  onChangeText,
-}: {
-  placeholderText: string;
-  value: string;
-  onChangeText: (text: string) => void;
-}) {
-  return (
-    <View
-      style={{
-        flex: 1,
-        flexDirection: 'row',
-        alignItems: 'center',
-        backgroundColor: C.white,
-        borderRadius: 24,
-        paddingHorizontal: 15,
-        height: 50,
-      }}
-    >
-      <Icon source="magnify" size={20} color={C.subtext} />
-      <TextInput
-        placeholder={placeholderText}
-        placeholderTextColor={C.subtext}
-        style={{ flex: 1, marginLeft: 10, fontSize: 16, color: C.text }}
-        value={value}
-        onChangeText={onChangeText}
-      />
-    </View>
-  );
+interface StoreCategory {
+  id: number;
+  name: string;
 }
 
 interface VendorInfoScreenProps {
-  vendor: Vendor; // The clicked vendor object passed from VendorsScreen
-  onNavigate: (screenName: string) => void;
+  vendor: Vendor;
+  onNavigate: (screenName: string, params?: any) => void;
+  onGoBack: () => void;
 }
 
-export default function VendorInfoScreen({ vendor, onNavigate }: VendorInfoScreenProps) {
+export default function VendorInfoScreen({ 
+  vendor, 
+  onNavigate,
+  onGoBack 
+}: VendorInfoScreenProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [activePage, setActivePage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   
   const [products, setProducts] = useState<any[]>([]);
-  const [storeCategories, setStoreCategories] = useState<string[]>([]);
+  const [storeCategories, setStoreCategories] = useState<StoreCategory[]>([]); // Handles category objects
   const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false); // 2. Add refreshing state
+  const [refreshing, setRefreshing] = useState(false);
+
+  const [sortBy, setSortBy] = useState('date_desc');
+  const [sortLabel, setSortLabel] = useState('Sort by latest');
+  const [selectedCategoryId, setSelectedCategoryId] = useState<number | null>(null);
 
   const bannerSource = vendor?.banner 
     ? { uri: vendor.banner } 
     : require('../assets/default-store-banner.png');
 
-  // 3. Centralized fetch function for reusability
-  const fetchVendorData = () => {
+  const getSortParams = (sortType: string) => {
+    switch (sortType) {
+      case 'popularity':
+        return '&orderby=popularity&order=desc';
+      case 'rating':
+        return '&orderby=rating&order=desc';
+      case 'price_asc':
+        return '&orderby=price&order=asc';
+      case 'price_desc':
+        return '&orderby=price&order=desc';
+      case 'date_desc':
+      default:
+        return '&orderby=date&order=desc';
+    }
+  };
+
+  // Centralized fetch function
+  const fetchVendorData = (targetPage = 1, isRefresh = false) => {
     if (!vendor?.id) return Promise.resolve();
     
     const searchParam = searchQuery ? `&search=${searchQuery}` : '';
-    const url = `${BASE_URL}/wp-json/dokan/v1/stores/${vendor.id}/products?per_page=30&page=${activePage}${searchParam}`;
+    const sortParams = getSortParams(sortBy);
+    const categoryParam = selectedCategoryId ? `&category=${selectedCategoryId}` : '';
+    const url = `${BASE_URL}/wp-json/dokan/v1/stores/${vendor.id}/products?per_page=30&page=${targetPage}${searchParam}${sortParams}${categoryParam}`;
 
     return fetch(url)
       .then((res) => {
@@ -90,29 +89,48 @@ export default function VendorInfoScreen({ vendor, onNavigate }: VendorInfoScree
       })
       .then((raw: any[]) => {
         const mapped = raw.map(adaptWooProductToUI);
-        setProducts(mapped);
+        
+        if (isRefresh || targetPage === 1) {
+          setProducts(mapped);
+        } else {
+          setProducts((prev) => [...prev, ...mapped]);
+        }
 
-        const uniqueCats = new Set<string>();
-        mapped.forEach(product => {
-          product.categories?.forEach((catName: string) => uniqueCats.add(catName));
-        });
-        setStoreCategories(Array.from(uniqueCats));
+        // Extract and map store categories with unique IDs
+         if (!selectedCategoryId && storeCategories.length === 0) {
+          const catsMap = new Map<number, string>();
+          mapped.forEach(product => {
+            product.categories?.forEach((cat: { id: number; name: string }) => {
+              if (cat && cat.id && cat.name) {
+                catsMap.set(cat.id, cat.name);
+              }
+            });
+          });
+          const formattedCats = Array.from(catsMap.entries()).map(([id, name]) => ({ id, name }));
+          setStoreCategories(formattedCats);
+        }
       })
       .catch((err) => {
         console.error('[Vendor Products Fetch Error]:', err);
       });
   };
 
-  // 4. Trigger standard loading indicator fetch
+  // Re-fetch products whenever page, search query, sorting menu, or store category filter changes
   useEffect(() => {
-    setLoading(true);
-    fetchVendorData().finally(() => setLoading(false));
-  }, [vendor?.id, activePage, searchQuery]);
+    if (!vendor?.id) return;
 
-  // 5. Trigger pull-to-refresh fetch
+    setLoading(true);
+    fetchVendorData(activePage).finally(() => setLoading(false));
+  }, [vendor?.id, activePage, searchQuery, sortBy, selectedCategoryId]);
+
   const onRefresh = () => {
     setRefreshing(true);
-    fetchVendorData().finally(() => setRefreshing(false));
+    setPageAndReset(1);
+    fetchVendorData(1, true).finally(() => setRefreshing(false));
+  };
+
+  const setPageAndReset = (newPage: number) => {
+    setActivePage(newPage);
   };
 
   if (!vendor) {
@@ -121,7 +139,7 @@ export default function VendorInfoScreen({ vendor, onNavigate }: VendorInfoScree
         <View style={styles.centerStage}>
           <ActivityIndicator size="large" color={C.primary} />
           <Text style={styles.stateText}>Loading store details...</Text>
-          <TouchableOpacity style={[globalStyles.tagChip, { marginTop: 12 }]} onPress={() => onNavigate("Vendors")}>
+          <TouchableOpacity style={[globalStyles.tagChip, { marginTop: 12 }]} onPress={onGoBack}>
             <Text style={globalStyles.tagChipText}>Go Back</Text>
           </TouchableOpacity>
         </View>
@@ -135,12 +153,12 @@ export default function VendorInfoScreen({ vendor, onNavigate }: VendorInfoScree
     <SafeAreaView style={styles.mainContainer} edges={["top"]}>
 
       {/* Hero Header */}
-        <ImageBackground source={bannerSource} style={styles.heroHeaderBackground} imageStyle={styles.heroHeaderImageRadius} >
+      <ImageBackground source={bannerSource} style={styles.heroHeaderBackground} imageStyle={styles.heroHeaderImageRadius} >
         <View style={styles.greenOverlayTint} />
         <SafeAreaView style={styles.foregroundLayer}>
           <View style={styles.navRow}>
 
-            <TouchableOpacity style={styles.backButton} onPress={() => onNavigate("Vendors")}>
+            <TouchableOpacity style={styles.backButton} onPress={onGoBack}>
               <Icon source="chevron-left" size={24} color={C.white} />
             </TouchableOpacity>
 
@@ -164,7 +182,7 @@ export default function VendorInfoScreen({ vendor, onNavigate }: VendorInfoScree
         </SafeAreaView>
       </ImageBackground>
 
-      {/* 6. Attach RefreshControl to ScrollView */}
+      {/* ScrollView Refresh triggers */}
       <ScrollView 
         showsVerticalScrollIndicator={false} 
         contentContainerStyle={styles.scrollContent}
@@ -172,40 +190,59 @@ export default function VendorInfoScreen({ vendor, onNavigate }: VendorInfoScree
           <RefreshControl 
             refreshing={refreshing} 
             onRefresh={onRefresh} 
-            colors={[C.primary]} // Android visual color
-            tintColor={C.primary} // iOS visual color
+            colors={[C.primary]} 
+            tintColor={C.primary} 
           />
         }
       >
           
-        {/* Store Categories list */}
+        {/* Dynamic Store Categories list */}
         {storeCategories.length > 0 && (
           <View style={styles.categoriesCard}>
             <Text style={styles.sectionHeading}>Store Categories</Text>
             <View style={styles.categoriesList}>
-              {storeCategories.map((cat, index) => (
-                <View key={index} style={styles.categoryBulletRow}>
-                  <View style={styles.bulletPoint} />
-                  <TouchableOpacity activeOpacity={0.6}>
-                    <Text style={styles.categoryLinkText}>{cat}</Text>
-                  </TouchableOpacity>
-                </View>
-              ))}
+              {storeCategories.map((cat) => {
+                const isSelected = selectedCategoryId === cat.id;
+
+                return (
+                  <View key={cat.id} style={styles.categoryBulletRow}>
+                    <View style={[styles.bulletPoint, isSelected && { backgroundColor: C.primary }]} />
+                    <TouchableOpacity 
+                      activeOpacity={0.6}
+                      onPress={() => {
+                        // Toggle category filter: if clicking the same one, clear filter, otherwise set it
+                        setSelectedCategoryId(prev => prev === cat.id ? null : cat.id);
+                        setPageAndReset(1); // Reset back to page 1 on filter change
+                      }}
+                    >
+                      <Text style={[
+                        styles.categoryLinkText, 
+                        isSelected && { color: C.primary, fontWeight: '700' } // Highlight active category
+                      ]}>
+                        {cat.name}
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                );
+              })}
             </View>
           </View>
         )}
 
-        {/* Filter & Search Bar Row */}
-        <View style={styles.searchRow}>
-          {/* <TouchableOpacity style={styles.filterBtn}>
-            <Icon source="filter-variant" size={28} color={C.text} />
-          </TouchableOpacity> */}
-          
-          <SearchBar placeholderText='Search in store...' value={searchQuery} onChangeText={setSearchQuery} />
-        </View>
+        {/* Dynamic Search & Sort Row (Integrated modular component) */}
+        <SearchFilterRow 
+          placeholderText='Search in store...' 
+          searchQuery={searchQuery} 
+          onChangeSearch={setSearchQuery} 
+          onSelectSort={(sortByOption, labelOption) => {
+            setSortBy(sortByOption);
+            setSortLabel(labelOption);
+            setPageAndReset(1); // Reset back to page 1 on sort change
+          }}
+        />
 
         {/* Loading & Grid States */}
-        {loading && !refreshing ? ( // Prevents double spinner overlap during pull-to-refresh
+        {loading && !refreshing ? ( 
           <View style={styles.centerStage}>
             <ActivityIndicator size="large" color={C.primary} />
             <Text style={styles.stateText}>Fetching products...</Text>
@@ -218,8 +255,14 @@ export default function VendorInfoScreen({ vendor, onNavigate }: VendorInfoScree
           <View style={styles.productGridWrapper}>
             <View style={styles.inlineGridContainer}>
               {products.map((item) => (
-                <View key={item.id}>
-                  <ProductCard product={item} />
+                <View key={item.id} style={styles.gridCardWrapper}>
+                  {/* 2. Pass product directly inside navigation parameters */}
+                  <ProductCard 
+                    product={item as any} 
+                    onPress={() => {
+                      onNavigate("ProductDetails", item); 
+                    }}
+                  />
                 </View>
               ))}
             </View>
@@ -232,14 +275,14 @@ export default function VendorInfoScreen({ vendor, onNavigate }: VendorInfoScree
             {pageList.map((page) => (
               <TouchableOpacity 
                 key={page} 
-                onPress={() => setActivePage(page)}
+                onPress={() => setPageAndReset(page)}
                 style={[styles.pageBubble, activePage === page && styles.pageBubbleActive]}
                 activeOpacity={0.7}
               >
                 <Text style={[styles.pageText, activePage === page && styles.pageTextActive]}>{page}</Text>
               </TouchableOpacity>
             ))}
-            <TouchableOpacity style={styles.nextPageBtn} activeOpacity={0.7} onPress={() => setActivePage(prev => Math.min(prev + 1, totalPages))}>
+            <TouchableOpacity style={styles.nextPageBtn} activeOpacity={0.7} onPress={() => setPageAndReset(Math.min(activePage + 1, totalPages))}>
               <Icon source="chevron-right" size={20} color="#1C4A3A" />
             </TouchableOpacity>
           </View>
@@ -249,7 +292,6 @@ export default function VendorInfoScreen({ vendor, onNavigate }: VendorInfoScree
     </SafeAreaView>
   );
 }
-
 
 const styles = StyleSheet.create({
     mainContainer: { flex: 1, backgroundColor: C.bg },
@@ -309,12 +351,12 @@ const styles = StyleSheet.create({
     vendorName: {
         fontSize: 22,
         fontWeight: '700',
-        color: '#FFFFFF',
+        color: C.white,
         marginBottom: 4,
     },
     vendorDetail: {
         fontSize: 14,
-        color: '#FFFFFF',
+        color: C.white,
         fontWeight: '500',
         marginTop: 4,
     },
@@ -338,6 +380,7 @@ const styles = StyleSheet.create({
     categoryBulletRow: {
         flexDirection: 'row',
         alignItems: 'center',
+        marginBottom: 4,
     },
     bulletPoint: {
         width: 4,
@@ -357,9 +400,8 @@ const styles = StyleSheet.create({
         paddingHorizontal: 16,
         marginBottom: 24,
         gap: 16,
-    },
-    filterBtn: {
-        padding: 4,
+        zIndex: 9999, // Floating menu touch priority
+        position: 'relative',
     },
     productGridWrapper: {
         paddingHorizontal: 16,
@@ -367,9 +409,13 @@ const styles = StyleSheet.create({
     inlineGridContainer: {
         flexDirection: 'row',
         flexWrap: 'wrap',
-        justifyContent: 'space-between',
+        justifyContent: 'flex-start',
         rowGap: 16,
         marginBottom: 24,
+    },
+    gridCardWrapper: {
+        width: '30.5%',              // Fits three columns perfectly
+        marginHorizontal: '1.4%',    // Balanced horizontal margins
     },
     paginationContainer: {
         flexDirection: 'row',

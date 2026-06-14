@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, StyleSheet, TouchableOpacity, TextInput } from 'react-native'; // Added TextInput
+import { View, StyleSheet, TouchableOpacity, TextInput } from 'react-native';
 import { Icon, Menu } from 'react-native-paper';
 import { C } from '../styles/theme'; // Adjust path if needed
 
@@ -36,26 +36,41 @@ export default function SearchFilterRow({
             </TouchableOpacity>
           }
         >
+          {/* Updated menu items to support all 5 product sorting metrics */}
           <Menu.Item 
             onPress={() => {
-              onSelectSort('registered', 'Most Recent');
+              onSelectSort('popularity', 'Sort by popularity');
               setMenuVisible(false);
             }} 
-            title="Most Recent" 
+            title="Sort by popularity" 
           />
           <Menu.Item 
             onPress={() => {
-              onSelectSort('popularity', 'Most Popular');
+              onSelectSort('rating', 'Sort by average rating');
               setMenuVisible(false);
             }} 
-            title="Most Popular" 
+            title="Sort by average rating" 
           />
           <Menu.Item 
             onPress={() => {
-              onSelectSort('rand', 'Random');
+              onSelectSort('date_desc', 'Sort by latest');
               setMenuVisible(false);
             }} 
-            title="Random" 
+            title="Sort by latest" 
+          />
+          <Menu.Item 
+            onPress={() => {
+              onSelectSort('price_asc', 'Sort by price: low to high');
+              setMenuVisible(false);
+            }} 
+            title="Sort by price: low to high" 
+          />
+          <Menu.Item 
+            onPress={() => {
+              onSelectSort('price_desc', 'Sort by price: high to low');
+              setMenuVisible(false);
+            }} 
+            title="Sort by price: high to low" 
           />
         </Menu>
       )}
@@ -69,7 +84,7 @@ export default function SearchFilterRow({
             placeholderTextColor={C.subtext}
             style={styles.textInput}
             value={searchQuery}
-            onChangeText={onChangeSearch} // Directly connected to parent's state setter
+            onChangeText={onChangeSearch} 
           />
         </View>
       </View>
@@ -84,6 +99,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 12,
     gap: 16,
+    zIndex: 9999,       
+    position: 'relative', 
   },
   filterBtn: {
     padding: 4,

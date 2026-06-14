@@ -8,25 +8,48 @@ interface DynamicProductSectionProps  {
   type: string;
   title: string;
   id?: number | null;
+  onPressProduct: (product: any) => void;
+  onPressCategory: (archiveParam: any) => void;
 }
 
-export default function DynamicProductSection({ type, title, id }: DynamicProductSectionProps) {
+// Added 'onPressProduct' to the destructured argument parameters
+export default function DynamicProductSection({ 
+  type, 
+  title, 
+  id, 
+  onPressProduct,
+  onPressCategory
+}: DynamicProductSectionProps) {
   const [products, setProducts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
+  // Endpoint helper
+  const buildEndpoint = (type: string, id: number | null | undefined): string => {
+    const cacheBuster = `cb=${Date.now()}`;
+    switch (type) {
+      case "product-category": 
+        return `products?category=${id}&per_page=10`;
+      case "product-tag":      
+        return `products?tag=${id}&per_page=10`;
+      case "on_sale":  
+        return `products?on_sale=true&per_page=12&random=true&${cacheBuster}`;
+      case "featured": 
+        return `products?featured=true&per_page=12&random=true&${cacheBuster}`;
+      default:         
+        return `products?per_page=10`;
+    }
+  };
+
   useEffect(() => {
-    // Safety check: if the section requires an ID but it is missing, don't query
     if ((type === "product-category" || type === "product-tag") && !id) {
       setLoading(false);
       return;
     }
 
     const endpoint = buildEndpoint(type, id);
-    console.log(`[${title}] fetching:`, endpoint);
     
     fetchWooCommerce(endpoint)
       .then((raw) => {
-        console.log(`[${title}] got ${raw.length} products`);
         setProducts(raw.map(adaptWooProductToUI));
       })
       .catch((err) => {
@@ -36,9 +59,31 @@ export default function DynamicProductSection({ type, title, id }: DynamicProduc
   }, [type, id]);
 
   if (loading) return <View style={{ height: 180 }}><ActivityIndicator /></View>;
-  if (!products.length) return null; // hides sections with 0 products safely
+  if (!products.length) return null; 
 
-  return <ProductSection title={title} products={products} />;
+  let resolvedArchiveType: 'category' | 'tag' | 'on_sale' = 'category';
+
+  if (type === 'product-tag') {
+    resolvedArchiveType = 'tag';
+  } else if (type === 'on_sale') {
+    resolvedArchiveType = 'on_sale';
+  }
+
+  return (
+    <ProductSection 
+      title={title} 
+      products={products} 
+      showViewMore={true}
+      onPressProduct={onPressProduct}
+      onViewMore={() => {
+        onPressCategory({
+          type: resolvedArchiveType,
+          id: id || 0,
+          name: title,
+        });
+      }}
+    />
+  );
 }
 
 function buildEndpoint(type: string, id: number | null | undefined): string {

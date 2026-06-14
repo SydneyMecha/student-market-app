@@ -1,49 +1,67 @@
-import React from 'react';
+import React, { useEffect } from 'react'; // 1. Imported useEffect
 import {
   View,
   Text,
   StyleSheet,
   ScrollView,
   TouchableOpacity,
+  ActivityIndicator,
 } from "react-native";
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { C, globalStyles } from '../styles/theme';
 import { Icon } from 'react-native-paper';
+import { C, globalStyles } from '../styles/theme';
 
 interface OrderConfirmationScreenProps {
-  onNavigate: (screenName: string) => void;
+  order: any; // Mapped WooCommerce order object passed from Checkout
+  onNavigate: (screenName: string, params?: any) => void;
 }
 
-export default function OrderConfirmationScreen({ onNavigate }: OrderConfirmationScreenProps) {
-  // --- Mock Data ---
-  const orderInfo = {
-    orderNumber: "10838",
-    date: "June 10, 2026",
-    email: "cmokeira09@gmail.com",
-    paymentMethod: "Cash On Delivery"
-  };
+export default function OrderConfirmationScreen({ order, onNavigate }: OrderConfirmationScreenProps) {
+  
+  // Safe Guard: prevent crashing if order parameter is missing during transition
+  if (!order) {
+    return (
+      <SafeAreaView style={styles.safeArea} edges={["top"]}>
+        <View style={styles.centerStage}>
+          <ActivityIndicator size="large" color={C.primary} />
+        </View>
+      </SafeAreaView>
+    );
+  }
 
-  const orderItems = [
-    { id: 1, name: "Product Name x 1", vendor: "Admin", price: 500 },
-    { id: 2, name: "Product Name x 3", vendor: "Admin", price: 300 },
-    { id: 3, name: "Product Name x 1", vendor: "Admin", price: 700 },
-  ];
+  // Parse and extract WooCommerce order details dynamically
+  const orderNumber = order.id || "N/A";
+  
+  // Format the WordPress ISO date created string (e.g. "2026-06-10T18:00:00" to "June 10, 2026")
+  const orderDate = order.date_created 
+    ? new Date(order.date_created).toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric'
+      })
+    : "N/A";
 
-  const subtotal = 1500;
-  const discount = 0;
-  const shipping = 0;
-  const total = 1500;
+  const email = order.billing?.email || "N/A";
+  const paymentMethod = order.payment_method_title || "Cash On Delivery";
+  const lineItems = order.line_items || [];
+
+  // Parse order summary pricing tallies
+  const total = parseFloat(order.total || "0");
+  const discount = parseFloat(order.discount_total || "0");
+  const shipping = parseFloat(order.shipping_total || "0");
+  const subtotal = total + discount - shipping;
 
   return (
     <SafeAreaView style={styles.safeArea} edges={["top"]}>
       
+      {/* Header (On pressing back, resets back to Home) */}
       <View style={[globalStyles.headerRow]}>
         <TouchableOpacity 
-        style={globalStyles.iconBtn} 
-        onPress={() => onNavigate('Home')}
-        activeOpacity={0.7}
+          style={globalStyles.iconBtn} 
+          onPress={() => onNavigate('Home')}
+          activeOpacity={0.7}
         >
-          <Icon source="chevron-left" size={24} />
+          <Icon source="chevron-left" size={24} color={C.text} />
         </TouchableOpacity>
 
         <Text style={globalStyles.headerTitle}>Thank You!</Text>
@@ -51,57 +69,45 @@ export default function OrderConfirmationScreen({ onNavigate }: OrderConfirmatio
         <View style={{ width: 36 }} /> 
       </View>
 
-      <ScrollView showsVerticalScrollIndicator={false}>
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
   
-        <View style={[globalStyles.featuredSectionFrame, { padding: 12, }]}>
+        {/* Order Meta Card */}
+        <View style={[globalStyles.featuredSectionFrame, { padding: 16, marginBottom: 16 }]}>
           <Text style={styles.successMessage}>Your order has been received.</Text>
           
           <View style={styles.metaBlock}>
             <Text style={styles.metaLabel}>ORDER NUMBER:</Text>
-            <Text style={styles.metaValue}>{orderInfo.orderNumber}</Text>
+            <Text style={styles.metaValue}>{orderNumber}</Text>
           </View>
           
           <View style={styles.metaBlock}>
             <Text style={styles.metaLabel}>DATE</Text>
-            <Text style={styles.metaValue}>{orderInfo.date}</Text>
+            <Text style={styles.metaValue}>{orderDate}</Text>
           </View>
 
           <View style={styles.metaBlock}>
             <Text style={styles.metaLabel}>EMAIL</Text>
-            <Text style={styles.metaValue}>{orderInfo.email}</Text>
+            <Text style={styles.metaValue}>{email}</Text>
           </View>
 
           <View style={styles.metaBlock}>
             <Text style={styles.metaLabel}>PAYMENT METHOD</Text>
-            <Text style={styles.metaValue}>{orderInfo.paymentMethod}</Text>
+            <Text style={styles.metaValue}>{paymentMethod}</Text>
           </View>
-
         </View>
 
-        {/* 3. Itemized Invoice Card */}
-        <View style={[globalStyles.featuredSectionFrame,  { padding: 12, }]}>
+        {/* Itemized Invoice Details Card */}
+        <View style={[globalStyles.featuredSectionFrame,  { padding: 16, marginBottom: 16 }]}>
           <Text style={styles.sectionHeading}>Order Details</Text>
           
           <View style={styles.itemList}>
-            {orderItems.map((item) => (
-
+            {lineItems.map((item: any) => (
               <View key={item.id} style={styles.itemRow}>
-
                 <View style={styles.itemLeft}>
-
                   <Text style={styles.itemName}>{item.name}</Text>
-                  
-                  <TouchableOpacity 
-                        onPress={() => console.log("Navigate to Vendor Storefront: Sydney's Closet")}
-                        activeOpacity={0.6}
-                        >
-                        <Text style={styles.itemVendor}>
-                            Store: <Text style={styles.vendorName}>Sydney's Closet</Text>
-                        </Text>
-                    </TouchableOpacity>
-                    
+                  <Text style={styles.itemQty}>Quantity: {item.quantity}</Text>
                 </View>
-                <Text style={styles.itemPrice}>Ksh {item.price.toLocaleString()}</Text>
+                <Text style={styles.itemPrice}>Ksh {parseFloat(item.total).toLocaleString()}</Text>
               </View>
             ))}
           </View>
@@ -114,12 +120,15 @@ export default function OrderConfirmationScreen({ onNavigate }: OrderConfirmatio
             </View>
             <View style={styles.ledgerRow}>
               <Text style={styles.ledgerLabel}>Discount</Text>
-              <Text style={styles.ledgerValue}>Ksh {discount.toLocaleString()}</Text>
+              <Text style={styles.ledgerValue}>- Ksh {discount.toLocaleString()}</Text>
             </View>
             <View style={styles.ledgerRow}>
               <Text style={styles.ledgerLabel}>Shipping</Text>
               <Text style={styles.ledgerValue}>Ksh {shipping.toLocaleString()}</Text>
             </View>
+            
+            <View style={styles.divider} />
+
             <View style={[styles.ledgerRow, styles.totalRowSpacing]}>
               <Text style={styles.totalLabel}>Total</Text>
               <Text style={styles.totalValue}>Ksh {total.toLocaleString()}</Text>
@@ -127,14 +136,14 @@ export default function OrderConfirmationScreen({ onNavigate }: OrderConfirmatio
           </View>
         </View>
 
-        {/* 4. Shipping Address Card */}
-        <View style={[globalStyles.featuredSectionFrame,  { padding: 12, }]}>
+        {/* Shipping Address Card */}
+        <View style={[globalStyles.featuredSectionFrame,  { padding: 16, marginBottom: 16 }]}>
           <Text style={styles.sectionHeading}>Shipping Address</Text>
           <View style={styles.addressBlock}>
-            <Text style={styles.addressText}>Cynthia</Text>
-            <Text style={styles.addressText}>Athi River</Text>
-            <Text style={styles.addressText}>0712 345 678</Text>
-            <Text style={styles.addressText}>cmokeira09@gmail.com</Text>
+            <Text style={styles.addressText}>{order.billing?.first_name || "N/A"}</Text>
+            <Text style={styles.addressText}>{order.billing?.city || "N/A"}</Text>
+            <Text style={styles.addressText}>{order.billing?.phone || "N/A"}</Text>
+            <Text style={styles.addressText}>{order.billing?.email || "N/A"}</Text>
           </View>
         </View>
 
@@ -145,33 +154,35 @@ export default function OrderConfirmationScreen({ onNavigate }: OrderConfirmatio
 
 const styles = StyleSheet.create({
     safeArea: { flex: 1, backgroundColor: C.bg},
+    centerStage: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+    scrollContent: { paddingBottom: 40 },
     
     // Section 1: Meta Blocks
-    successMessage: { fontSize: 20, color: C.text, marginBottom: 20 },
+    successMessage: { fontSize: 20, color: C.text, fontWeight: '600', marginBottom: 20 },
     metaBlock: { marginBottom: 16 },
-    metaLabel: { fontSize: 13, color: C.primary, fontWeight: '500', textTransform: 'uppercase', marginBottom: 4 },
+    metaLabel: { fontSize: 13, color: C.primary, fontWeight: '600', textTransform: 'uppercase', marginBottom: 4 },
     metaValue: { fontSize: 13, color: C.subtext },
 
     // Section 2: Order Details
     sectionHeading: { fontSize: 18, fontWeight: '600', color: C.text, marginBottom: 16 },
     itemList: { marginBottom: 16 },
-    itemRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 16 },
+    itemRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 16, borderBottomWidth: 0.5, borderBottomColor: C.border, paddingBottom: 12 },
     itemLeft: { flex: 1, paddingRight: 16 },
     itemName: { fontSize: 14, color: C.text, fontWeight: '700', marginBottom: 4 },
-    itemVendor: { fontSize: 12, color: C.subtext },
-    vendorName: { color: '#1C4A3A', fontWeight: '500' }, // Brand Green
-    itemPrice: { fontSize: 13, color: C.text, fontWeight: '500', marginTop: 2 },
+    itemQty: { fontSize: 12, color: C.subtext },
+    itemPrice: { fontSize: 14, color: C.text, fontWeight: '600', marginTop: 2 },
     
     // Ledger
     ledgerBlock: { gap: 10, marginTop: 8 },
     ledgerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
     ledgerLabel: { fontSize: 13, color: C.subtext },
-    ledgerValue: { fontSize: 13, color: C.text },
-    totalRowSpacing: { marginTop: 8 },
+    ledgerValue: { fontSize: 13, color: C.text, fontWeight: '500' },
+    divider: { height: 1, backgroundColor: C.border, marginVertical: 4 },
+    totalRowSpacing: { marginTop: 4 },
     totalLabel: { fontSize: 15, fontWeight: '700', color: C.text },
     totalValue: { fontSize: 15, fontWeight: '700', color: C.text },
 
     // Section 3: Address
     addressBlock: { gap: 8 },
-    addressText: { fontSize: 13, color: C.text, lineHeight: 20 },
+    addressText: { fontSize: 13, color: C.text, lineHeight: 20, fontWeight: '500' },
 });
