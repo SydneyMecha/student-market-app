@@ -8,7 +8,9 @@ import {
   ScrollView,
   TouchableOpacity,
   Linking,
-  RefreshControl
+  RefreshControl,
+  Animated,
+  PanResponder
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Icon } from "react-native-paper";
@@ -206,14 +208,14 @@ export default function HomeScreen({ onNavigate }: HomeScreenProps) {
               return (
                 <TouchableOpacity
                   key={product.id}
-                  style={styles.resultRow}
-                  activeOpacity={0.8}
-                  onPress={() => {
-                    setSearchQuery(''); // Reset state
-                    setSearchResults([]);
-                    setSearchActive(false);
-                    onNavigate("ProductDetails");
-                  }}
+                    style={styles.resultRow}
+                    activeOpacity={0.8}
+                    onPress={() => {
+                      setSearchQuery(''); // Reset state
+                      setSearchResults([]);
+                      setSearchActive(false);
+                      onNavigate("ProductDetails", product);
+                    }}
                 >
                   <View style={styles.thumbWrapper}>
                     {img ? (
@@ -573,6 +575,6 @@ const styles = StyleSheet.create({
     position: 'relative',
   },
   inlineAdImage: {
-    ...StyleSheet.absoluteFillObject, 
+    ...StyleSheet.absoluteFill, 
   },
 });

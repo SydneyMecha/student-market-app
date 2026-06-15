@@ -1,10 +1,9 @@
 import React, { useState, useEffect } from "react";
-import { View, StyleSheet } from "react-native";
+import { View, StyleSheet, BackHandler } from "react-native";
 import { PaperProvider } from "react-native-paper";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { C } from './styles/theme';
 import { updateGlobalCartCount } from './services/cartState';
-import { BackHandler } from 'react-native';
 
 import HomeScreen from "./screens/HomeScreen";
 import ProductDetailsScreen from "./screens/ProductDetailsScreen";
@@ -39,25 +38,28 @@ export default function App() {
       return false;
     };
 
-    BackHandler.addEventListener('hardwareBackPress', onHardwareBackPress);
-    return () => BackHandler.removeEventListener('hardwareBackPress', onHardwareBackPress);
+    // 1. Capture the subscription object returned by addEventListener
+    const subscription = BackHandler.addEventListener(
+      'hardwareBackPress', 
+      onHardwareBackPress
+    );
+
+    // 2. Use the .remove() method in the cleanup function
+    return () => subscription.remove();
   }, [history]);
 
   const currentRoute = history[history.length - 1];
   const activeTab = currentRoute.screen;
   const params = currentRoute.params;
 
-  // Automatically broadcast any additions, subtractions, or cart clears
   useEffect(() => {
     updateGlobalCartCount(cartItems.length);
   }, [cartItems]);
 
-  // Navigation Forward (Push)
   const navigateTo = (screen, screenParams = null) => {
     setHistory((prev) => [...prev, { screen, params: screenParams }]);
   };
 
-  // Navigation Backward (Pop)
   const navigateBack = () => {
     setHistory((prev) => {
       if (prev.length <= 1) return [{ screen: "Home", params: null }];
@@ -67,7 +69,6 @@ export default function App() {
     });
   };
 
-  // Global Basket State Handlers
   const addToCart = (product, qty) => {
     setCartItems((prev) => {
       const existingIndex = prev.findIndex((item) => item.id === product.id);
@@ -81,7 +82,7 @@ export default function App() {
     });
   };
 
-   const updateCartQty = (id, delta) => {
+  const updateCartQty = (id, delta) => {
     setCartItems((prev) =>
       prev.map((item) =>
         item.id === id ? { ...item, qty: Math.max(1, item.qty + delta) } : item
@@ -186,7 +187,7 @@ export default function App() {
       case "OrdersList":
         return (
           <OrdersScreen 
-            currentUser={currentUser} // Passes active user session
+            currentUser={currentUser} 
             onNavigate={navigateTo} 
             onGoBack={navigateBack}
           />
@@ -212,23 +213,24 @@ export default function App() {
       <PaperProvider>
         <View style={styles.appContainer}>
           <View style={styles.mainContentWindow}>
-            
-            {/* ── Permanent background mount for Home screen ── */}
-            <View style={activeTab !== "Home" ? { display: "none", height: 0, width: 0 } : { flex: 1 }}>
-              <HomeScreen 
-                onNavigate={navigateTo} 
-              />
+
+            {/* Permanently mounted: Home */}
+            <View style={[{ flex: 1 }, activeTab !== "Home" && { display: 'none' }]}>
+              <HomeScreen onNavigate={navigateTo} />
             </View>
 
-            {/* ── Permanent background mount for Categories screen (PRESERVES STATE) ── */}
-            <View style={activeTab !== "Categories" ? { display: "none", height: 0, width: 0 } : { flex: 1 }}>
-              <CategoriesScreen 
-                onNavigate={navigateTo} 
-              />
+            {/* Permanently mounted: Categories */}
+            <View style={[{ flex: 1 }, activeTab !== "Categories" && { display: 'none' }]}>
+              <CategoriesScreen onNavigate={navigateTo} />
             </View>
 
-            {/* Render other temporary screens dynamically */}
-            {activeTab !== "Home" && activeTab !== "Categories" && renderScreen()}
+            {/* Dynamic screens wrapper changed from StyleSheet.absoluteFill to flex layout */}
+            {activeTab !== "Home" && activeTab !== "Categories" && (
+              <View style={styles.dynamicScreenContainer}>
+                {renderScreen()}
+              </View>
+            )}
+
           </View>
 
           {/* BottomNav */}
@@ -253,5 +255,6 @@ export default function App() {
 
 const styles = StyleSheet.create({
   appContainer: { flex: 1, backgroundColor: C.bg },
-  mainContentWindow: { flex: 1 }
+  mainContentWindow: { flex: 1 },
+  dynamicScreenContainer: { flex: 1 } // Replaces absolute positioning style
 });
