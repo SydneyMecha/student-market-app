@@ -8,7 +8,7 @@ const CS = process.env.EXPO_PUBLIC_WC_SECRET;
  * @param options Standard fetch options (method, body, headers)
  */
 
-export const BASE_URL = API_URL as string;
+export const BASE_URL = process.env.EXPO_PUBLIC_BASE_URL || 'https://studentmarket.co.ke';
 
 export const fetchWooCommerce = async (endpoint: string, options: RequestInit = {}) => {
   // Check if the endpoint string already contains a question mark
