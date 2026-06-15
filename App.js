@@ -57,7 +57,16 @@ export default function App() {
   }, [cartItems]);
 
   const navigateTo = (screen, screenParams = null) => {
-    setHistory((prev) => [...prev, { screen, params: screenParams }]);
+    if (screen === "Home") {
+      setHistory([{ screen: "Home", params: null }]);
+    } else if (screen === "OrderConfirmation") {
+      setHistory([
+        { screen: "Home", params: null },
+        { screen: "OrderConfirmation", params: screenParams }
+      ]);
+    } else {
+      setHistory((prev) => [...prev, { screen, params: screenParams }]);
+    }
   };
 
   const navigateBack = () => {
