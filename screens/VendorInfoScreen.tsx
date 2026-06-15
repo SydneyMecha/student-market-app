@@ -49,6 +49,11 @@ export default function VendorInfoScreen({
   const [sortLabel, setSortLabel] = useState('Sort by latest');
   const [selectedCategoryId, setSelectedCategoryId] = useState<number | null>(null);
 
+  let bannerUri = vendor?.banner || null;
+  if (bannerUri && bannerUri.includes('/uploads/') && !bannerUri.includes('/wp-content/')) {
+    bannerUri = bannerUri.replace('/uploads/', '/wp-content/uploads/');
+  }
+
   const bannerSource = vendor?.banner 
     ? { uri: vendor.banner } 
     : require('../assets/default-store-banner.png');
@@ -304,7 +309,7 @@ const styles = StyleSheet.create({
         borderBottomRightRadius: 32,
     },
     greenOverlayTint: {
-        ...StyleSheet.absoluteFillObject,
+        ...StyleSheet.absoluteFill,
         backgroundColor: 'rgba(28, 74, 58, 0.75)',
         borderBottomLeftRadius: 32,
         borderBottomRightRadius: 32,

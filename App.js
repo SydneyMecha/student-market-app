@@ -4,6 +4,7 @@ import { PaperProvider } from "react-native-paper";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { C } from './styles/theme';
 import { updateGlobalCartCount } from './services/cartState';
+import { BackHandler } from 'react-native';
 
 import HomeScreen from "./screens/HomeScreen";
 import ProductDetailsScreen from "./screens/ProductDetailsScreen";
@@ -24,12 +25,24 @@ import BottomNav from "./components/BottomNav";
 const screensWithoutBottomNav = ["Cart", "Checkout", "OrderConfirmation", "EditProfile", "Auth", "ProductDetails", "VendorInfo" ];
 
 export default function App() {
-  // ─── 1. ALL STATE HOOKS MOVED TO THE ABSOLUTE TOP OF THE COMPONENT ───
   const [history, setHistory] = useState([{ screen: "Home", params: null }]);
   const [cartItems, setCartItems] = useState([]);
   const [currentUser, setCurrentUser] = useState(null);
 
-  // 2. Computed variables (Safe from temporal dead-zones now!)
+  React.useEffect(() => {
+    const onHardwareBackPress = () => {
+      // If we have history to pop, go back step-by-step
+      if (history.length > 1) {
+        navigateBack();
+        return true;
+      }
+      return false;
+    };
+
+    BackHandler.addEventListener('hardwareBackPress', onHardwareBackPress);
+    return () => BackHandler.removeEventListener('hardwareBackPress', onHardwareBackPress);
+  }, [history]);
+
   const currentRoute = history[history.length - 1];
   const activeTab = currentRoute.screen;
   const params = currentRoute.params;
@@ -39,12 +52,12 @@ export default function App() {
     updateGlobalCartCount(cartItems.length);
   }, [cartItems]);
 
-  // 3. Navigation Forward (Push)
+  // Navigation Forward (Push)
   const navigateTo = (screen, screenParams = null) => {
     setHistory((prev) => [...prev, { screen, params: screenParams }]);
   };
 
-  // 4. Navigation Backward (Pop)
+  // Navigation Backward (Pop)
   const navigateBack = () => {
     setHistory((prev) => {
       if (prev.length <= 1) return [{ screen: "Home", params: null }];
@@ -54,7 +67,7 @@ export default function App() {
     });
   };
 
-  // 5. Global Basket State Handlers
+  // Global Basket State Handlers
   const addToCart = (product, qty) => {
     setCartItems((prev) => {
       const existingIndex = prev.findIndex((item) => item.id === product.id);
@@ -200,14 +213,14 @@ export default function App() {
         <View style={styles.appContainer}>
           <View style={styles.mainContentWindow}>
             
-            {/* ── 1. Permanent background mount for Home screen ── */}
+            {/* ── Permanent background mount for Home screen ── */}
             <View style={activeTab !== "Home" ? { display: "none", height: 0, width: 0 } : { flex: 1 }}>
               <HomeScreen 
                 onNavigate={navigateTo} 
               />
             </View>
 
-            {/* ── 2. Permanent background mount for Categories screen (PRESERVES STATE) ── */}
+            {/* ── Permanent background mount for Categories screen (PRESERVES STATE) ── */}
             <View style={activeTab !== "Categories" ? { display: "none", height: 0, width: 0 } : { flex: 1 }}>
               <CategoriesScreen 
                 onNavigate={navigateTo} 

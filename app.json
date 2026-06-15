@@ -19,7 +19,7 @@
       "package": "com.studentmarket.app",
       "adaptiveIcon": {
         "foregroundImage": "./assets/Logo.png",
-        "backgroundColor": "#ffffff"
+        "backgroundColor": "#12452F"
       },
       "edgeToEdgeEnabled": true,
       "intentFilters": [
