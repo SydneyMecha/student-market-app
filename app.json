@@ -17,7 +17,6 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.studentmarket.app",
       "associatedDomains": [
-        "applinks:studentmarket.co.ke",
         "applinks:studentmarket.co.ke"
       ]
     },
@@ -43,37 +42,14 @@
             "BROWSABLE",
             "DEFAULT"
           ]
-        },
-        {
-          "action": "VIEW",
-          "autoVerify": true,
-          "data": [
-            {
-              "scheme": "https",
-              "host": "studentmarket.co.ke",
-              "pathPrefix": "/product"
-            }
-          ],
-          "category": [
-            "BROWSABLE",
-            "DEFAULT"
-          ]
         }
       ]
     },
     "web": {
       "favicon": "./assets/Logo.png"
     },
-    "extra": {
-      "eas": {
-        "projectId": "ba1efccb-f20c-4e5d-b5f3-eb2dd072046b"
-      }
-    },
-    "runtimeVersion": {
-      "policy": "appVersion"
-    },
-    "updates": {
-      "url": "https://u.expo.dev/ba1efccb-f20c-4e5d-b5f3-eb2dd072046b"
-    }
+    "plugins": [
+      "expo-font"
+    ]
   }
 }
