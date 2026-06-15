@@ -80,8 +80,21 @@ export default function SignUpForm({ onRegister }: SignUpFormProps) {
 
       {accountType === 'vendor' && (
         <View style={styles.vendorBlock}>
+
+          <Text style={styles.privacyText}>
+            To create a vendor's account, please visit
+            <TouchableOpacity 
+              activeOpacity={0.7}
+              onPress={() => {
+                const url = 'https://studentmarket.co.ke/my-account/';
+                Linking.openURL(url).catch((err) => console.error("[Vendor Account Redirect Error]:", err));
+              }}
+            >
+              <Text style={styles.privacyLink}> the website.</Text>
+            </TouchableOpacity>
+          </Text>
           
-          <FormInput 
+          {/* <FormInput 
             label="First Name *" 
             placeholder="First Name" 
             value={firstName} 
@@ -163,7 +176,7 @@ export default function SignUpForm({ onRegister }: SignUpFormProps) {
             value={phone} 
             onChangeText={setPhone} 
             keyboardType="phone-pad" 
-          />
+          /> */}
         </View>
       )}
 
