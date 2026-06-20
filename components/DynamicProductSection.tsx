@@ -27,9 +27,9 @@ export default function DynamicProductSection({
     const cacheBuster = `cb=${Date.now()}`;
     switch (type) {
       case "product-category": 
-        return `products?category=${id}&per_page=10&stock_status=instock`; // Appended instock filter
+        return `products?category=${id}&per_page=10&random=true&stock_status=instock`; // Appended instock filter
       case "product-tag":      
-        return `products?tag=${id}&per_page=10&stock_status=instock`;      // Appended instock filter
+        return `products?tag=${id}&per_page=10&random=true&stock_status=instock`;      // Appended instock filter
       case "on_sale":  
         return `products?on_sale=true&per_page=12&random=true&stock_status=instock&${cacheBuster}`;
       case "featured": 
@@ -90,9 +90,9 @@ function buildEndpoint(type: string, id: number | null | undefined): string {
   
   switch (type) {
     case "product-category": 
-      return `products?category=${id}&per_page=10`;
+      return `products?category=${id}&per_page=10&random=true`;
     case "product-tag":      
-      return `products?tag=${id}&per_page=10`;
+      return `products?tag=${id}&per_page=10&random=true`;
     case "on_sale":  
       return `products?on_sale=true&per_page=12&random=true`;
     case "featured": 

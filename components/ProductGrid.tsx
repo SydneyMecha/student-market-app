@@ -20,7 +20,7 @@ export default function ProductGrid({
   onViewMore,
 }: ProductGridProps) { 
   return (
-    <View style={styles.container}>
+    <View>
       <ScrollView 
         horizontal={true} 
         showsHorizontalScrollIndicator={false}
@@ -47,9 +47,6 @@ export default function ProductGrid({
 }
 
 const styles = StyleSheet.create({
-  container: {
-    marginVertical: 24,
-  },
   scrollContainer: {
     paddingHorizontal: 16,
     gap: 8,                
@@ -60,7 +57,7 @@ const styles = StyleSheet.create({
   viewMoreBtn: { 
     alignItems: "flex-end", 
     paddingHorizontal: 16, 
-    marginTop: 8 
+    marginTop: 16 
   },
   viewMoreText: { 
     fontSize: 16, 
